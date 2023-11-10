@@ -7,3 +7,5 @@ https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1211538
 https://cave.cs.columbia.edu/old/publications/pdfs/Kumar_ECCV08_2.pdf
 
 https://people.engr.tamu.edu/nimak/Data/ICCP14_MaskedPatches.pdf
+
+https://cs.brown.edu/courses/csci1290/2011/asgn/proj3/
