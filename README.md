@@ -38,7 +38,8 @@ For compute resources, we will need access to an NVIDIA GPU as well as a multi-c
 
 ## Goals and Deliverables
 ### Plan to Achieve
-Content-aware fill with drawn-on masks
+Content-aware fill with drawn-on masks.
+For the poster session, we hope to have an interface linked to a backend running our algorithm.
 
 ### Stretch Goals
 Frame-to-frame PatchMatch for object tracking within drawn-on masks
