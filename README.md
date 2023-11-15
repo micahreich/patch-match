@@ -44,11 +44,10 @@ For compute resources, we will need access to an NVIDIA GPU as well as a multi-c
 
 ## Goals and Deliverables
 ### Plan to Achieve
-Content-aware fill with drawn-on masks.
-For the poster session, we hope to have an interface linked to a backend running our algorithm.
+We primarily plan on implementing content-aware fill with drawn-on masks. That is, we want to fill in image regions which have been painted by users in realtime. For the poster session, we hope to have an interface linked to a backend running our algorithm so that users can try it out themselves.
 
 ### Stretch Goals
-Frame-to-frame PatchMatch for object tracking within drawn-on masks
+If we have enough time, we'd want to explore either video inpainting across multiple frames or frame-to-frame PatchMatch for object tracking within drawn-on masks. This would allow users to paint a mask over an object and track the location of all pixels inside the mask across time througout the video. 
 
 ## Platform Choice
 We have chosen an NVIDIA RTX 2080 GPU running CUDA and an Intel i7-9700 8-core CPU running OpenMP. It makes sense to use these parallel systems because the PatchMatch algorithm has independent work in each NNF iteration as well as other image operations (blending, smoothing) which can be done in a data-parallel fashion. GPUs are notoriously successful in parallelizing image operations, and we can similarly parallelize NNF construction across CPU cores, albeit to a lesser degree.
@@ -56,16 +55,21 @@ We have chosen an NVIDIA RTX 2080 GPU running CUDA and an Intel i7-9700 8-core C
 ## Schedule
 Week of November 13th:
 - Have a sequential version of the algorithm working in Python
+- Implement NNF across images as a first step
+- Implement hole-filling sequentially using different patch distance metrics, filling priprities, etc
 
 Week of November 20th:
+- Port Python implementation to C++
 - Finish a parallel CPU implementation with C++ and OpenMP
 
 Week of November 27th: 
-- Finish CUDA implementation of the algorithm
+- Finish CUDA implementation of the algorithm and test on GHC 2080s
 
 Week of December 4th:
+- Optimize OpenMP and CUDA implementations
 - Create a basic web interface that allows for image uploading
-- Setup an API for our algorithm
+- Setup an API for our algorithm for image uploading, painting masks, and receiving the result back
 
 Week of December 11th:
 - Have a working demo with an interface
+- Continue to optimize implementation details and produce figures, speedup plots, etc. 
