@@ -29,6 +29,8 @@ In terms of what we can parallelize, the most obvious step is the random search 
 A major challenge in implementing a parallelized version of PatchMatch is having to work around the propagation step contains data dependencies that bottleneck the performance. Identifying and implementing techniques to try and limit some of these data dependencies across iterations while maintaining high performance and fast convergence will be difficult. 
 By the nature of how the algorithm works, we anticipate there being heavy locality across iterations. For example, computing the offset of a patch during the propagation step relies on nearby patches, which are physically close on the image and therefore could exhibit good spatial locality. 
 
+We are confident that this is possible since the paper says that the authors were able to write a GPU implementation with 7x speedup.
+
 ## Resources
 We will start from scratch, first developing a sequential algorithm which performs image inpainting / content-aware fill in images. We are using a few papers as reference for the procedure of hole-filling as well as the specifics of the PatchMatch algorithm:
 
