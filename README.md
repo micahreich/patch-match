@@ -24,6 +24,8 @@ The PatchMatch algorithm at a high level attempts to find corresponding "patches
 In terms of what we can parallelize, the most obvious step is the random search step. Because that one is totally independent of the other patches, we can split the random search step up and completely parallelize it across all patches at once. An interesting challenge will be parallelizing the propagation step. Because there are some dependencies, we might consider doing some sort of red-black ordering and parallelizing that way, but we are unsure and will keep exploring our options.
 
 ## The Challenge
+A big challenge in implementing a parallelized version of PatchMatch is the fact that the propagation step contains data dependencies that bottleneck the performance. Identifying and implementing techniques to try and limit some of the data dependencies across iterations while maintaining high performance and fast convergence will be difficult. 
+By the nature of how the algorithm works, we anticipate there being heavy locality across iterations. For example, computing the offset of a patch during the propagation step relies on nearby patches, which are physically close on the image and therefore could exhibit good spatial locality. 
 
 ## Resources
 We will start from scratch, first developing a sequential algorithm which performs image inpainting / content-aware fill in images. We are using a few papers as reference for the procedure of hole-filling as well as the specifics of the PatchMatch algorithm:
