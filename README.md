@@ -11,6 +11,8 @@ https://people.engr.tamu.edu/nimak/Data/ICCP14_MaskedPatches.pdf
 
 https://cs.brown.edu/courses/csci1290/2011/asgn/proj3/
 
+https://www.ipol.im/pub/art/2017/189/article.pdf
+
 ## Title: Parallel NNFs with PatchMatch
 Micah Reich (mreich), David Krajewski (dkrajews)
 ## Summary
