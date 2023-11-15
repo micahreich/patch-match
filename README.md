@@ -46,3 +46,20 @@ Frame-to-frame PatchMatch for object tracking within drawn-on masks
 
 ## Platform Choice
 We have chosen an NVIDIA RTX 2080 GPU running CUDA and an Intel i7-9700 8-core CPU running OpenMP. It makes sense to use these parallel systems because the PatchMatch algorithm has independent work in each NNF iteration as well as other image operations (blending, smoothing) which can be done in a data-parallel fashion. GPUs are notoriously successful in parallelizing image operations, and we can similarly parallelize NNF construction across CPU cores, albeit to a lesser degree.
+
+## Schedule
+Week of November 13th:
+- Have a sequential version of the algorithm working in Python
+
+Week of November 20th:
+- Finish a parallel CPU implementation with C++ and OpenMP
+
+Week of November 27th: 
+- Finish CUDA implementation of the algorithm
+
+Week of December 4th:
+- Create a basic web interface that allows for image uploading
+- Setup an API for our algorithm
+
+Week of December 11th:
+- Have a working demo with an interface
