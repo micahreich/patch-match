@@ -15,15 +15,17 @@ endif
 SOURCES := src/*.cpp
 HEADERS := $(wildcard src/*.h)
 
-TARGETBIN := pm-$(CONFIGURATION)
+TARGETBIN := $(OUTPUTDIR)pm-$(CONFIGURATION)
+
+# Recipe to build the target binary
+$(TARGETBIN): $(SOURCES) $(HEADERS)
+	mkdir -p $(OUTPUTDIR)
+	$(CXX) -o $@ $(CFLAGS) $(SOURCES)
 
 .SUFFIXES:
 .PHONY: all clean
 
 all: $(TARGETBIN)
-
-$(TARGETBIN): $(SOURCES) $(HEADERS)
-	$(CXX) -o $@ $(CFLAGS) $(SOURCES)
 
 format:
 	clang-format -i src/*.cpp src/*.h
