@@ -13,7 +13,7 @@ CFLAGS += -O2 -fopenmp
 endif
 
 SOURCES := src/*.cpp
-HEADERS := src/*.h
+HEADERS := $(wildcard src/*.h)
 
 TARGETBIN := pm-$(CONFIGURATION)
 
