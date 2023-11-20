@@ -58,6 +58,8 @@ int main() {
     int height = image.height();
     int channels = image.spectrum();
 
+    int min_dimension = min(width, height);
+
     CImg<unsigned char> mask(width, height, 1, 1, 255);
 
     CImgDisplay main_disp(mask, "Click a point");
@@ -65,7 +67,7 @@ int main() {
     int prev_x = -1, prev_y = -1;
     char prev_key = 0;
 
-    int brush_radius = HALF_SIZE;
+    int brush_radius = max(HALF_SIZE, static_cast<int>(0.05 * min_dimension));
 
     FillMode curr_mode = FillMode::FILL;
 
