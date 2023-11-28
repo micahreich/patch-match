@@ -3,28 +3,28 @@
 
 #define cimg_use_png
 #include "CImg.h"
+#include "utils.h"
 
 using namespace cimg_library;
 using namespace std;
 
-#define PATCH_SIZE 13
+#define PATCH_SIZE 7
 #define HALF_SIZE PATCH_SIZE / 2
 #define BRUSH_SIZE_MULT 0.2f
 
 #define TOGGLE_FILL_ON '1'        // ASCII for 1
 #define TOGGLE_ERASE_ON '2'       // ASCII for 2
-#define TOGGLE_BRUSH_RAD_INCR 'x' // ASCII for ]
-#define TOGGLE_BRUSH_RAD_DECR 'z' // ASCII for [
+#define TOGGLE_BRUSH_RAD_INCR 'x' // ASCII for x
+#define TOGGLE_BRUSH_RAD_DECR 'z' // ASCII for z
+#define TOGGLE_SAVE 's'
 
+const unsigned char MASK_COLOR[] = {0, 255, 0};
 
 enum FillMode {
-    ERASE = 255,
+    ERASE = 1,
     FILL = 0
 };
 
-bool inBounds(int x, int y, int width, int height) {
-    return (x >= 0 && x < width && y >= 0 && y < height);
-}
 
 void maskFillPatch(CImg<unsigned char> &mask, CImg<unsigned char> &masked_image, CImg<unsigned char> &original_image,
                    int x, int y, FillMode curr_mode, int brush_radius) {
@@ -41,7 +41,7 @@ void maskFillPatch(CImg<unsigned char> &mask, CImg<unsigned char> &masked_image,
                         if (curr_mode == ERASE) {
                             masked_image(circle_x, circle_y, 0, k) = original_image(circle_x, circle_y, 0, k);
                         } else if (curr_mode == FILL) {
-                            masked_image(circle_x, circle_y, 0, k) = curr_mode;
+                            masked_image(circle_x, circle_y, 0, k) = MASK_COLOR[k];
                         }
                     }
                 }
@@ -57,7 +57,6 @@ int main() {
     int width = image.width();
     int height = image.height();
     int channels = image.spectrum();
-
     int min_dimension = min(width, height);
 
     CImg<unsigned char> mask(width, height, 1, 1, 255);
@@ -67,7 +66,7 @@ int main() {
     int prev_x = -1, prev_y = -1;
     char prev_key = 0;
 
-    int brush_radius = max(HALF_SIZE, static_cast<int>(0.05 * min_dimension));
+    int brush_radius = max(HALF_SIZE, static_cast<int>(0.03 * min_dimension));
 
     FillMode curr_mode = FillMode::FILL;
 
@@ -90,6 +89,10 @@ int main() {
                         break;
                     case TOGGLE_BRUSH_RAD_DECR:
                         brush_radius = max(HALF_SIZE, static_cast<int>((1 - BRUSH_SIZE_MULT) * brush_radius));
+                        break;
+                    case TOGGLE_SAVE:
+                        if (main_disp.is_keyCTRLLEFT())
+                            main_disp.close();
                         break;
                 }
             }
