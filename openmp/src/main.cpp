@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
         if (inBounds(x, y, width, height))
             display_image.draw_ellipse(x, y, brush_radius, brush_radius, 0, COLOR_WHITE, 1, ~0U);
 
-        // Draw the text on the image
+        // Draw the hotkeys information text
         display_image.draw_text(10, 10, "1: Fill On", COLOR_WHITE, COLOR_BLACK);
         display_image.draw_text(10, 30, "2: Erase On", COLOR_WHITE, COLOR_BLACK);
         display_image.draw_text(10, 50, "x: Increase Brush Radius", COLOR_WHITE, COLOR_BLACK);
