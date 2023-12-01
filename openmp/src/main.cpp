@@ -52,6 +52,7 @@ void maskFillPatch(CImg<unsigned char> &mask, CImg<unsigned char> &masked_image,
     }
 }
 
+
 int main(int argc, char *argv[]) {
     // Read in user image with -i command line flag, or use lena.png as default
     const char *image_path = "src/lena.png";
