@@ -112,7 +112,8 @@ struct Array2D {
         return downsampled_array;
     }
 
-    static Array2D<T> pad(const Array2D<T>& array, unsigned int x_padding, unsigned int y_padding, bool constant_mode = false) {
+    static Array2D<T> pad(const Array2D<T>& array, unsigned int x_padding, unsigned int y_padding, bool constant_mode = false)
+    {
         // Reallocate new space for image
         // Store padding values
         auto padded_height = array.height + 2*y_padding;
@@ -148,7 +149,7 @@ struct Array2D {
 
 };
 
-struct MaskStruct {
+struct Mask {
     unsigned int height, width;
     Array2D<bool> data;
 
