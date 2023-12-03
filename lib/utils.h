@@ -31,7 +31,7 @@ const float GAUSSIAN_KERNEL[3][3] = {
     {0.075113608, 0.123841403, 0.075113608}
 };
 
-bool inBounds(int x, int y, int width, int height, int half_size=0) {
+static bool inBounds(int x, int y, int width, int height, int half_size=0) {
     return (x >= half_size && x < width - half_size && y >= half_size && y < height - half_size);
 }
 
@@ -153,13 +153,13 @@ struct Mask {
     unsigned int height, width;
     Array2D<bool> data;
 
-    Mask() : height(0), width(0), data() {}
+    MaskStruct() : height(0), width(0), data() {}
 
-    Mask(unsigned int h, unsigned int w, Array2D<bool> other) : height(h), width(w), data(other) {}
+    MaskStruct(unsigned int h, unsigned int w, Array2D<bool> other) : height(h), width(w), data(other) {}
 
-    Mask(const Mask& other) : height(other.height), width(other.width), data(other.data) {}
+    MaskStruct(const MaskStruct& other) : height(other.height), width(other.width), data(other.data) {}
 
-    ~Mask() {
+    ~MaskStruct() {
         
     }
 };
@@ -256,7 +256,7 @@ struct RGBPixel {
 // }
 
 // Function to apply Gaussian filter to an image
-Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
+static Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
     int height = image.height;
     int width = image.width;
     Array2D<RGBPixel> filtered_image(height, width);
@@ -305,7 +305,7 @@ typedef Array2D<RGBPixel> image_t;
 //     return downsampled_array;
 // }
 
-mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
+static mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
                               const bool block[3][3], unsigned int half_size=0,
                               std::function<bool(bool, bool)> combineFn = [](bool a, bool b) { return a && b; })
 {
@@ -330,7 +330,7 @@ mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
     return convolved_mask;
 }
 
-mask_t dilateMask(const mask_t &mask, unsigned int half_size=0) {
+static mask_t dilateMask(const mask_t &mask, unsigned int half_size=0) {
     const bool dilation_block[3][3] = {
         {0, 1, 0},
         {1, 1, 1},
@@ -342,7 +342,7 @@ mask_t dilateMask(const mask_t &mask, unsigned int half_size=0) {
     return structureBlockConvolve(mask, 1, dilation_block, half_size, dilation_fn);
 }
 
-mask_t erodeMask(const mask_t &mask, unsigned int half_size=0) {
+static mask_t erodeMask(const mask_t &mask, unsigned int half_size=0) {
     const bool erosion_block[3][3] = {
         {1, 0, 1},
         {0, 0, 0},
@@ -354,7 +354,7 @@ mask_t erodeMask(const mask_t &mask, unsigned int half_size=0) {
     return structureBlockConvolve(mask, 0, erosion_block, half_size, erosion_fn);
 }
 
-bool maskNotEmpty(const mask_t &mask) {
+static bool maskNotEmpty(const mask_t &mask) {
     for (int r = 0; r < mask.height; r++) {
         for (int c = 0; c < mask.width; c++) {
             if (mask(r, c)) return true;
