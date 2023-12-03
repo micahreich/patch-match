@@ -151,6 +151,16 @@ struct Array2D {
 struct MaskStruct {
     unsigned int height, width;
     Array2D<bool> data;
+
+    Mask() : height(0), width(0), data() {}
+
+    Mask(unsigned int h, unsigned int w, Array2D<bool> other) : height(h), width(w), data(other) {}
+
+    Mask(const Mask& other) : height(other.height), width(other.width), data(other.data) {}
+
+    ~Mask() {
+        
+    }
 };
 
 struct GradientPair {
