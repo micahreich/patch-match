@@ -13,49 +13,77 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     mask_pyramid = new mask_t[n_levels];
     image_pyramid = new image_t[n_levels];
 
-    texture_t image_texture = texture_t(image.height, image.width, 2);
+    texture_t image_texture = texture_t(image.height, image.width);
 
-    /**
-    shift_map_t *shift_map_pyramid;
-    distance_map_t *distance_map_pyramid;
-    texture_t *texture_pyramid;
-    mask_t *mask_pyramid;
-    image_t *image_pyramid;*/
     image_pyramid[0] = image;
     mask_pyramid[0] = mask;
     texture_pyramid[0] = image_texture;
     
     for(unsigned int i = 1; i < n_levels; ++i) {
         image_t previous_image = image_pyramid[i-1];
-        image_t next_level_image = applyGaussianFilter(previous_image, 3, 1.0);
-        image_t next_level_image_downsampled = downsampleArray(next_level_image, 2);
+        image_t next_level_image = gaussianFilter(previous_image);
+        image_t next_level_image_downsampled = image_t::downsample(next_level_image, 2);
         image_pyramid[i] = next_level_image_downsampled;
 
         int multiplier = pow(2, i);
-        texture_t next_level_texture = downsampleArray(next_level_texture, multiplier);
+        texture_t next_level_texture = texture_t::downsample(texture_pyramid[0], multiplier);
         texture_pyramid[i] = next_level_texture;
 
-        mask_t next_level_mask = downsampleArray(mask_pyramid[i-1], 2);
+        mask_t next_level_mask = mask_t::downsample(mask_pyramid[i-1], 2);
         mask_pyramid[i] = next_level_mask;
-        
     }
+
+    for(unsigned int i = 1; i < n_levels; i++) {
+        image_pyramid[i] = image_t::pad(image_pyramid[i], half_size, half_size);
+        texture_pyramid[i] = texture_t::pad(texture_pyramid[i], half_size, half_size);
+        mask_pyramid[i] = mask_t::pad(mask_pyramid[i], half_size, half_size, true);
+    }
+
+    for(int i = 0; i < n_levels; i++) {
+        int image_h = image_pyramid[i].height;
+        int image_w = image_pyramid[i].width;
+
+        int mask_h = mask_pyramid[i].height;
+        int mask_w = mask_pyramid[i].width;
+
+        assert(image_h == mask_h);
+        assert(image_w == mask_w);
+    }
+    
+
+    // image_t coarse_image = image_pyramid[n_levels-1];
+    // mask_t coarse_mask = mask_pyramid[n_levels-1];
+    // mask_t dilated_coarse_mask = dilateMask(coarse_mask);
+    // mask_t eroded_mask = erodeMask(dilated_coarse_mask);
+
+    // shift_map_t shift_map(coarse_image.height, coarse_image.width);
+
+    // unsigned int level_height = coarse_image.height, level_width = coarse_image.width;
+    // for(unsigned int r = half_size; r < level_height-half_size; r++) {
+    //     for(unsigned int c = half_size; c < level_width-half_size; c++) {
+    //         int random_i = r;
+    //         int random_j = c;
+
+    //         while(dilated_coarse_mask(random_i, random_j)) {
+    //             random_i = random_int(half_size, level_height-half_size);
+    //             random_j = random_int(half_size, level_width - half_size);
+    //         }
+
+    //         int shift_i = random_i - r;
+    //         int shift_j = random_j - c;
+    //         shift_map(r, c) = Vec2i(shift_i, shift_j);
+    //     }
+    // }
+
+
 
     
 
-    /**
-    padding_width = [(HALF_SIZE, HALF_SIZE), (HALF_SIZE, HALF_SIZE), (0, 0)]
-
-    # To prevent out of bounds errors, pad the image/texture/map at all levels with half the patch size
-    # around the borders
-    for i in range(0, n_pyramid_levels):
-        image_pyramid[i] = np.pad(image_pyramid[i], pad_width=padding_width, mode='edge')
-        texture_pyramid[i] = np.pad(texture_pyramid[i], pad_width=padding_width, mode='edge')
-        mask_pyramid[i] = np.pad(mask_pyramid[i], pad_width=padding_width[:-1], mode='constant', constant_values=0)*/
 
     
 }
 
-float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool masked=false)
+float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool masked)
 {
     // Get the current level's image and texture pyramids
     int pyramid_idx = getPyramidIndex();
