@@ -159,8 +159,8 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO @dkrajews: Ensure this gives consistent results (i.e. rgb is in the right order)
-    Array3D<unsigned char> img_array(height, width, 3, image.data());
-    Array3D<bool> mask_array(height, width, 1, mask.data());
+    // Array3D<unsigned char> img_array(height, width, 3, image.data());
+    // Array3D<bool> mask_array(height, width, 1, mask.data());
     
     
 

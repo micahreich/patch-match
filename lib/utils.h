@@ -16,13 +16,13 @@
 #include <string.h>
 #include <cmath>
 #include <vector>
-
+#include <random>
 
 struct ImageSliceCoords {
-    size_t row_start;
-    size_t row_end;
-    size_t col_start;
-    size_t col_end;
+    int row_start;
+    int row_end;
+    int col_start;
+    int col_end;
 };
 
 const float GAUSSIAN_KERNEL[3][3] = {
@@ -105,18 +105,53 @@ struct Array2D {
 
         for (int r = 0; r < array.height; r += dx) {
             for (int c = 0; c < array.width; c += dx) {
-                downsampled_array(r / dx, c / dx) = array(m, n);
+                downsampled_array(r / dx, c / dx) = array(r, c);
             }
         }
 
         return downsampled_array;
     }
+
+    static Array2D<T> pad(const Array2D<T>& array, unsigned int x_padding, unsigned int y_padding, bool constant_mode = false) {
+        // Reallocate new space for image
+        // Store padding values
+        auto padded_height = array.height + 2*y_padding;
+        auto padded_width = array.width + 2*x_padding;
+
+        Array2D<T> padded_array(padded_height, padded_width);
+
+        // Copy original array into the center of the padded array
+        for (unsigned int r = 0; r < array.height; ++r) {
+            for (unsigned int c = 0; c < array.width; ++c) {
+                padded_array(r + y_padding, c + x_padding) = array(r, c);
+            }
+        }
+
+        // Pad the top and bottom
+        for (unsigned int r = 0; r < y_padding; ++r) {
+            for (unsigned int c = 0; c < padded_width; ++c) {
+                padded_array(r, c) = constant_mode ? T() : padded_array(y_padding, c);
+                padded_array(r + y_padding + array.height, c) = constant_mode ? T() : padded_array(y_padding + array.height - 1, c);
+            }
+        }
+
+        // Pad the left and right
+        for (unsigned int r = 0; r < padded_height; ++r) {
+            for (unsigned int c = 0; c < x_padding; ++c) {
+                padded_array(r, c) = constant_mode ? T() : padded_array(r, x_padding);
+                padded_array(r, c + x_padding + array.width) = constant_mode ? T() : padded_array(r, x_padding + array.width - 1);
+            }
+        }
+
+        return padded_array;
+    }
+
 };
 
-struct Mask {
+struct MaskStruct {
     unsigned int height, width;
     Array2D<bool> data;
-}
+};
 
 struct GradientPair {
     float grad_x, grad_y;
@@ -226,9 +261,9 @@ Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
                     // TODO @dkrajews: fix the blurring around the edges
                     // see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html for info on different methods
 
-                    if (newX >= 0 && newX < height && newY >= 0 && newY < width) {
-                        sum = (image(newX, newY) * GAUSSIAN_KERNEL[x + halfSize][y + halfSize]) + sum;
-                    }
+                    // if (newX >= 0 && newX < height && newY >= 0 && newY < width) {
+                    //     sum = (image(newX, newY) * GAUSSIAN_KERNEL[x + halfSize][y + halfSize]) + sum;
+                    // }
                 }
             }
 
@@ -238,6 +273,12 @@ Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
 
     return filtered_image;
 }
+
+typedef Array2D<Vec2i> shift_map_t;
+typedef Array2D<float> distance_map_t;
+typedef Array2D<GradientPair> texture_t;
+typedef Array2D<bool> mask_t;
+typedef Array2D<RGBPixel> image_t;
 
 // template<typename T>
 // Array2D<T> downsampleArray(Array2D<T>& array, int dx) {
@@ -253,13 +294,9 @@ Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
 //     return downsampled_array;
 // }
 
-
-
-
-
 mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
                               const bool block[3][3], unsigned int half_size=0,
-                              function<bool(bool, bool)> combineFn)
+                              std::function<bool(bool, bool)> combineFn = [](bool a, bool b) { return a && b; })
 {
     mask_t convolved_mask(mask); // Deep copy of the original mask
 
@@ -315,5 +352,14 @@ bool maskNotEmpty(const mask_t &mask) {
 
     return false;
 }
+
+static int random_int(int lb, int ub) {
+    static std::random_device dev;
+    static std::mt19937 rng(dev());
+    static std::uniform_int_distribution<std::mt19937::result_type> dist(lb, ub);
+
+    return dist(rng);
+}
+
 
 #endif

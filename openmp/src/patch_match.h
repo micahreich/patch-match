@@ -7,24 +7,11 @@
 
 using namespace std;
 
-struct ImageSliceCoords {
-    int row_start;
-    int row_end;
-    int col_start;
-    int col_end;
-};
-
 struct Dimension {
     unsigned int height;
     unsigned int width;
     unsigned int depth;
 };
-
-typedef Array2D<Vec2i> shift_map_t;
-typedef Array2D<float> distance_map_t;
-typedef Array2D<GradientPair> texture_t;
-typedef Array2D<bool> mask_t;
-typedef Array2D<RGBPixel> image_t;
 
 class PatchMatchInpainter {
 private:
