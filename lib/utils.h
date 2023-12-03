@@ -116,7 +116,7 @@ struct Array2D {
 struct Mask {
     unsigned int height, width;
     Array2D<bool> data;
-}
+};
 
 struct GradientPair {
     float grad_x, grad_y;
