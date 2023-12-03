@@ -74,12 +74,6 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     //         shift_map(r, c) = Vec2i(shift_i, shift_j);
     //     }
     // }
-
-
-
-    
-
-
     
 }
 
