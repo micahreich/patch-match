@@ -1,31 +1,80 @@
 #ifndef  __PATCH_MATCH_H__
 #define  __PATCH_MATCH_H__
 
+#include <optional>
+
 #include "utils.h"
 
-typedef unsigned int* shift_map_t;
-typedef float* distance_map_t;
-typedef float* texture_t;
-typedef bool* mask_t;
-typedef int* image_t;
+using namespace std;
+
+struct ImageSliceCoords {
+    int row_start;
+    int row_end;
+    int col_start;
+    int col_end;
+};
+
+struct Dimension {
+    unsigned int height;
+    unsigned int width;
+    unsigned int depth;
+};
+
+typedef Array2D<Vec2i> shift_map_t;
+typedef Array2D<float> distance_map_t;
+typedef Array2D<GradientPair> texture_t;
+typedef Array2D<bool> mask_t;
+typedef Array2D<RGBPixel> image_t;
 
 class PatchMatchInpainter {
 private:
-    unsigned int n_levels, patch_size, half_size;
-    
+    int n_levels, patch_size, half_size;
+    int curr_level;
+    float lambda = 50;
+
     shift_map_t *shift_map_pyramid;
     distance_map_t *distance_map_pyramid;
     texture_t *texture_pyramid;
     mask_t *mask_pyramid;
+    mask_t *dilated_mask_pyramid;
     image_t *image_pyramid;
+    Dimension *dimensions_pyramid;
+
+    mask_t initializationMask;
+    mask_t initializationBoundary;
     
+    ImageSliceCoords patchRegion(Vec2i center, bool cutoff_padding=false) {
+        auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
+        int edge_size = cutoff_padding ? half_size : 0;
+
+        return ImageSliceCoords {
+            max(edge_size, center.i - half_size),
+            min((int)level_height - edge_size, center.i + half_size + 1),
+            max(edge_size, center.j - half_size),
+            min((int)level_width - edge_size, center.j + half_size + 1),
+        };
+    }
+
+    ImageSliceCoords relativePatchRegion(Vec2i center, bool cutoff_padding=false) {
+        auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
+        size_t edge_size = cutoff_padding ? half_size : 0;
+
+        ImageSliceCoords relative_region = patchRegion(center, cutoff_padding);
+        relative_region.row_start -= center.i;
+        relative_region.row_end -= center.i;
+        relative_region.col_start -= center.j;
+        relative_region.col_end -= center.j;
+
+        return relative_region;
+    }
+
     /**
      * @brief Compute the image texture given the RGB image. The image texture is a 3D array where each element is defined as
      * the 2D vector of absolute values of the image gradients in (x, y) at that point
      * 
      * @param image Original image
      */
-    void textureFromImage(image_t *image);
+    void textureFromImage(image_t image);
 
     /**
      * @brief Calculate the patch distance between patches A and B, each centered at a coordiante
@@ -46,12 +95,23 @@ private:
      * @param image Original image
      * @param mask Original mask
      */
-    void initPyramids(image_t *image, mask_t *mask);
+    void initPyramids(image_t image, mask_t mask);
+
+    /**
+     * @brief Get the current index into the image pyramid. We denote the initilization as level 0, meanwhile the rest
+     * of the stages take place at level 1 to level n_levels, but a curr_level of 0 and 1 should return 0 in this function.
+     * 
+     * @return unsigned int An index 0 <= index < n_levels into the pyramids
+     */
+    unsigned int getPyramidIndex() {
+        return max(curr_level - 1, 0);
+    } 
     
 public:
     PatchMatchInpainter(unsigned int n_levels, unsigned int patch_size,
-                        image_t *image, mask_t *mask);
+                        image_t image, mask_t mask);
 
+    ~PatchMatchInpainter();
     /**
      * @brief Perform the approximate nearest neighbor search for the current level. 
      * If level=0, perform approximate nearest neighbor search along only those pixels in the boundary mask
@@ -63,7 +123,7 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    void approximateNearestNeighbor(unsigned int level, mask_t shrinking_mask=nullptr, mask_t boundary_mask=nullptr);
+    shift_map_t approximateNearestNeighbor(distance_map_t &distance_map);
 
     /**
      * @brief Perform the image reconstruction step for the current level.
@@ -74,13 +134,18 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    void reconstructImage(unsigned int level, mask_t shrinking_mask=nullptr, mask_t boundary_mask=nullptr);
+    image_t reconstructImage();
 
     /**
      * @brief Reconstruct the final image. This method does not use the weighted average of nearest neighbors of pixels
      * in each neighborhood. Instead, it uses the single pixel with the lowest NN distance value.
      */
     void reconstructFinalImage();
+
+    /**
+     * @brief Perform onion-peel initialization of the image at the coarsest level of the image pyramid.
+     */
+    void onionPeelInit();
 
     /**
      * @brief Perform the inpainting procedure. First initializes the hole region using the onion-peel method, then

@@ -18,6 +18,7 @@ const unsigned char COLOR_BLACK[] = {0,0,0};
 #define cimg_use_png
 #include "CImg.h"
 #include "utils.h"
+#include "patch_match.h"
 
 using namespace cimg_library;
 using namespace std;
@@ -77,7 +78,7 @@ int main(int argc, char *argv[]) {
     int channels = image.spectrum();
     int min_dimension = min(width, height);
 
-    CImg<unsigned char> mask(width, height, 1, 1, 255);
+    CImg<unsigned char> mask(width, height, 1, 1, 1);
 
     CImgDisplay main_disp(mask, "PatchMatch Image Inpainting");
 
@@ -157,5 +158,11 @@ int main(int argc, char *argv[]) {
         main_disp.display(display_image);
     }
 
-    return 0;
+    // TODO @dkrajews: Ensure this gives consistent results (i.e. rgb is in the right order)
+    Array3D<unsigned char> img_array(height, width, 3, image.data());
+    Array3D<bool> mask_array(height, width, 1, mask.data());
+    
+    
+
+    return EXIT_SUCCESS;
 }
