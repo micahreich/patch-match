@@ -3,6 +3,7 @@
 #include "patch_match.h"
 #include "utils.h"
 #include <opencv2/opencv.hpp>
+#include <optional>
 
 void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 {
@@ -93,28 +94,32 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     
 }
 
-float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool masked)
-{
-    // Get the current level's image and texture pyramids
-    int pyramid_idx = getPyramidIndex();
+float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB,
+                                         std::optional<reference_wrapper<mask_t>> init_shrinking_mask)
+{   
+    mask_t shrinking_mask;
+    if (pyramid_idx == 0) {
+        assert(init_shrinking_mask != std::nullopt);
+        shrinking_mask = init_shrinking_mask->get();
+    }
 
+    // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
 
     size_t image_h = image.rows, image_w = image.cols;
     assert(inBounds(centerA.j, centerA.i, image_w, image_h, half_size)); // Should always be in bounds (outside padding)
 
-    mask_t mask = this->mask_pyramid[pyramid_idx];
     float occluded_patch_area = patch_size * patch_size;
     
     // If masked, calculate how many pixels are unmasked in the region
-    if (masked) {
-        ImageSliceCoords regionA = patchRegion(centerA);
+    if (pyramid_idx == 0) {
+        ImageSliceCoords regionA = patchRegion(centerA, image_h, image_w);
         occluded_patch_area = 0.f;
 
         for (size_t r = regionA.row_start; r < regionA.row_end; r++) {
             for (size_t c = regionA.col_start; r < regionA.col_end; c++) {
-                occluded_patch_area += mask.at<bool>(r, c);
+                occluded_patch_area += !shrinking_mask.at<bool>(r, c);
             }
         }
 
@@ -129,7 +134,7 @@ float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool mask
             int regionA_r = centerA.i + dr, regionA_c = centerA.j + dc;
             int regionB_r = centerB.i + dr, regionB_c = centerB.j + dc;
 
-            if (masked && mask.at<bool>(regionA_r, regionA_c)) continue;
+            if (pyramid_idx == 0 && shrinking_mask.at<bool>(regionA_r, regionA_c)) continue;
 
             cv::Vec3b rgb_difference = image.at<cv::Vec3b>(regionA_r, regionA_c) - image.at<cv::Vec3b>(regionB_r, regionB_c);
             rgb_difference = rgb_difference.mul(rgb_difference);
@@ -145,17 +150,82 @@ float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool mask
     return 1.f / occluded_patch_area * (ssd_image + lambda * ssd_texture);
 }
 
-image_t PatchMatchInpainter::reconstructImage()
+image_t PatchMatchInpainter::reconstructImage(int pyramid_idx,
+                                              std::optional<reference_wrapper<mask_t>> init_boundary_mask,
+                                              std::optional<reference_wrapper<mask_t>> init_shrinking_mask)
 {
-    // Get the current level's image and texture pyramids
-    int pyramid_idx = getPyramidIndex();
+    mask_t boundary_mask, shrinking_mask;
+    if (pyramid_idx == 0) {
+        assert(init_boundary_mask != std::nullopt);
+        assert(init_shrinking_mask != std::nullopt);
 
+        boundary_mask = init_boundary_mask->get();
+        shrinking_mask = init_shrinking_mask->get();
+    }
+
+    // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
+    mask_t mask = this->mask_pyramid[pyramid_idx];
+    distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
+    shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx];
 
     size_t image_h = image.rows, image_w = image.cols;
+    unsigned int patch_area = patch_size * patch_size;
     
+    for (int r = half_size; r < image_h - half_size; r++) {
+        for (int c = half_size; c < image_w - half_size; c++) {
+            if (pyramid_idx == 0 && !boundary_mask.at<bool>(r, c)) continue;
+            else if (pyramid_idx > 0 && !mask.at<bool>(r, c)) continue;
 
+            // Find the 75th percentile distance (of those unmasked distances, if in initialization)
+            vector<float> region_distances(patch_area, -1.f);
+            vector<Vec2i> pixels(patch_area);
+
+            ImageSliceCoords safe_region = patchRegion(Vec2i(r, c), image_h, image_w, true);
+
+            unsigned int k = 0;
+            for (int i = safe_region.row_start; i < safe_region.row_end; i++) {
+                for (int j = safe_region.col_start; j < safe_region.col_end; j++) {
+                    if (pyramid_idx > 0 || (pyramid_idx == 0 && !shrinking_mask.at<bool>(i, j))) {
+                        pixels[k] = Vec2i(i, j);
+                        region_distances[k] = distance_map.at<float>(i, j);
+                        k++;
+                    }
+                }
+            }
+
+            vector<float> scores(region_distances);
+
+            unsigned int n_excluded = patch_area - k;
+            unsigned int q = static_cast<unsigned int>(n_excluded + 0.75f * k);
+            
+            nth_element(region_distances.begin(), region_distances.begin() + q, region_distances.end());
+            float sigma_p = region_distances[q];
+
+            // Find each pixel's weight and take a weighted sum of pixels in the neighborhood
+            float scores_sum = 0.f;
+            for (int i = 0; i < k; i++) {
+                scores[i] = expf(-scores[i] / (2 * sigma_p * sigma_p));
+                scores_sum += scores[i];
+            }
+
+            cv::Vec3b image_pixel;
+            cv::Vec2f texture_pixel;
+
+            for (int i = 0; i < k; i++) {
+                float entry_weight = scores[i] / scores_sum;
+
+                cv::Vec2f shift = shift_map.at<cv::Vec2f>(pixels[k].i, pixels[k].j);
+                
+                image_pixel += entry_weight * image.at<cv::Vec3b>(r + shift[0], c + shift[1]);
+                texture_pixel += entry_weight * texture.at<cv::Vec2f>(r + shift[0], c + shift[1]);
+            }
+
+            image.at<cv::Vec3b>(r, c) = image_pixel;
+            texture.at<cv::Vec2f>(r, c) = texture_pixel;
+        }
+    }
 }
 
 void PatchMatchInpainter::onionPeelInit()

@@ -14,7 +14,7 @@ ifeq ($(SYSTYPE),mac)
 	LDFLAGS += -L$(OPENCV_DIR)/lib
 
 	# Compiler flags
-	CFLAGS := -std=c++14 -fvisibility=hidden -lpthread
+	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
 
 	# Library flags
 	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui
