@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 
 #define PATCH_SIZE 7
 #define HALF_SIZE PATCH_SIZE / 2
@@ -24,8 +25,8 @@ using namespace cimg_library;
 using namespace std;
 
 enum FillMode {
-    ERASE = 1,
-    FILL = 0
+    ERASE = 0,
+    FILL = 1
 };
 
 
@@ -78,7 +79,7 @@ int main(int argc, char *argv[]) {
     int channels = image.spectrum();
     int min_dimension = min(width, height);
 
-    CImg<unsigned char> mask(width, height, 1, 1, 1);
+    CImg<unsigned char> mask(width, height, 1, 1, 0);
 
     CImgDisplay main_disp(mask, "PatchMatch Image Inpainting");
 
@@ -162,6 +163,60 @@ int main(int argc, char *argv[]) {
     Array3D<unsigned char> img_array(height, width, 3, image.data());
     Array3D<bool> mask_array(height, width, 1, mask.data());
     
+    // image_t img_array(height, width);
+    // mask_t mask_array(height, width);
+    
+    // for (int i = 0; i < height; i++) {
+    //     for (int j = 0; j < width; j++) {
+    //         unsigned char r = image(i, j, 0, 0);
+    //         unsigned char g = image(i, j, 0, 1);
+    //         unsigned char b = image(i, j, 0, 2);
+    //         img_array(i, j) = RGBPixel(r, g, b);
+    //         mask_array(i, j) = !mask(i, j);
+    //     }
+    // }
+
+    cv::Mat img_mat(height, width, CV_8UC3);
+    cimg_forXY(image, x, y) {
+        img_mat.at<cv::Vec3b>(y, x)[0] = image(x, y, 0, 2); // B
+        img_mat.at<cv::Vec3b>(y, x)[1] = image(x, y, 0, 1); // G
+        img_mat.at<cv::Vec3b>(y, x)[2] = image(x, y, 0, 0); // R
+    }
+
+    cv::Mat mask_mat(height, width, CV_8UC1);
+    cimg_forXY(mask, x, y) {
+        mask_mat.at<bool>(y, x) = mask(x, y);
+    }
+
+    // cv::namedWindow("First Dimension", cv::WINDOW_NORMAL);
+    // cv::imshow("First Dimension", img_mat);
+    // cv::waitKey(0);
+
+    
+
+    // Prints the mask to visually inspect and ensure its correct
+    // for(int i = 0; i < height; i++) {
+    //     for(int j = 0; j < width; j++) {
+    //         printf("%d ", mask_mat.at<bool>(i, j));
+    //     }
+    //     printf("\n");
+    // }
+
+    PatchMatchInpainter inpainter(4, 7, img_mat, mask_mat);
+
+
+    // verify that reconstructed image works
+    // CImg<unsigned char> reconstructed_image(height, width, 1, 3, 0);
+    // cimg_forXY(reconstructed_image, x, y) {
+    //     RGBPixel pixel = img_array(x, y);
+    //     reconstructed_image(x, y, 0) = pixel.r;
+    //     reconstructed_image(x, y, 1) = pixel.g;
+    //     reconstructed_image(x, y, 2) = pixel.b;
+    // }
+    // CImgDisplay main_disp_2(reconstructed_image,"Reconstructed Image");
+    // while (!main_disp_2.is_closed()) {
+    //     main_disp_2.wait();
+    // }
     
 
     return EXIT_SUCCESS;
