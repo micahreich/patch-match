@@ -30,15 +30,14 @@ private:
     mask_t initializationMask;
     mask_t initializationBoundary;
     
-    ImageSliceCoords patchRegion(Vec2i center, bool cutoff_padding=false) {
-        auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
+    ImageSliceCoords patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
         int edge_size = cutoff_padding ? half_size : 0;
 
         return ImageSliceCoords {
             max(edge_size, center.i - half_size),
-            min((int)level_height - edge_size, center.i + half_size + 1),
+            min((int)image_h - edge_size, center.i + half_size + 1),
             max(edge_size, center.j - half_size),
-            min((int)level_width - edge_size, center.j + half_size + 1),
+            min((int)image_w - edge_size, center.j + half_size + 1),
         };
     }
 
@@ -71,7 +70,7 @@ private:
      * @param masked If mask=true, apply the mask from patch A to both patches before calculating distance
      * @return float Patch distance metric from A to B
      */
-    float patchDistance(Vec2i centerA, Vec2i centerB, bool masked=false);
+    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, bool masked=false);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is the result of a Gaussian kernel

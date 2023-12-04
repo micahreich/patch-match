@@ -153,13 +153,11 @@ struct Mask {
     unsigned int height, width;
     Array2D<bool> data;
 
-    MaskStruct() : height(0), width(0), data() {}
+    Mask() : height(0), width(0), data() {}
 
-    MaskStruct(unsigned int h, unsigned int w, Array2D<bool> other) : height(h), width(w), data(other) {}
+    Mask(const Mask& other) : height(other.height), width(other.width), data(other.data) {}
 
-    MaskStruct(const MaskStruct& other) : height(other.height), width(other.width), data(other.data) {}
-
-    ~MaskStruct() {
+    ~Mask() {
         
     }
 };
