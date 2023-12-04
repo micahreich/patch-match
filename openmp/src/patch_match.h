@@ -98,7 +98,9 @@ public:
     PatchMatchInpainter(unsigned int n_levels, unsigned int patch_size,
                         image_t image, mask_t mask);
 
-    ~PatchMatchInpainter();
+    ~PatchMatchInpainter() {
+
+    };
     /**
      * @brief Perform the approximate nearest neighbor search for the current level. 
      * If level=0, perform approximate nearest neighbor search along only those pixels in the boundary mask

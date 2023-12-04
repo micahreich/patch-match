@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 
 #define PATCH_SIZE 7
 #define HALF_SIZE PATCH_SIZE / 2
@@ -25,8 +26,8 @@ using namespace cimg_library;
 using namespace std;
 
 enum FillMode {
-    ERASE = 1,
-    FILL = 0
+    ERASE = 0,
+    FILL = 1
 };
 
 
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
     int channels = image.spectrum();
     int min_dimension = min(width, height);
 
-    CImg<unsigned char> mask(width, height, 1, 1, 1);
+    CImg<unsigned char> mask(width, height, 1, 1, 0);
 
     CImgDisplay main_disp(mask, "PatchMatch Image Inpainting");
 
@@ -182,19 +183,25 @@ int main(int argc, char *argv[]) {
 
     cv::Mat mask_mat(height, width, CV_8UC1);
     cimg_forXY(mask, x, y) {
-        mask_mat.at<uchar>(y, x) = mask(x, y);
+        mask_mat.at<bool>(y, x) = mask(x, y);
     }
 
-    // PatchMatchInpainter inpainter(7, 5, img_array, mask_array);
+    // cv::namedWindow("First Dimension", cv::WINDOW_NORMAL);
+    // cv::imshow("First Dimension", img_mat);
+    // cv::waitKey(0);
+
     
 
     // Prints the mask to visually inspect and ensure its correct
     // for(int i = 0; i < height; i++) {
     //     for(int j = 0; j < width; j++) {
-    //         printf("%d ", mask_array(i, j));
+    //         printf("%d ", mask_mat.at<bool>(i, j));
     //     }
     //     printf("\n");
     // }
+
+    PatchMatchInpainter inpainter(4, 7, img_mat, mask_mat);
+
 
     // verify that reconstructed image works
     // CImg<unsigned char> reconstructed_image(height, width, 1, 3, 0);
