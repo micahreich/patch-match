@@ -1,17 +1,23 @@
 OUTPUTDIR := bin/
 
 ifeq ($(SYSTYPE),mac)
+	
+
 	# Flags for the C Preprocessor
 	CPPFLAGS := -I/opt/homebrew/opt/jpeg/include -I/opt/homebrew/opt/libpng/include -I../lib -I/opt/X11/include
 
 	# Flags for the Linker
-	LDFLAGS := -L/opt/homebrew/opt/jpeg/lib -L/opt/homebrew/opt/libpng/lib -L/opt/X11/lib
+	LDFLAGS := -L/opt/homebrew/opt/jpeg/lib -L/opt/homebrew/opt/libpng/lib -L/opt/X11/lib 
+
+	OPENCV_DIR := $(shell brew --prefix opencv)
+	CPPFLAGS += -I$(OPENCV_DIR)/include/opencv4
+	LDFLAGS += -L$(OPENCV_DIR)/lib
 
 	# Compiler flags
 	CFLAGS := -std=c++14 -fvisibility=hidden -lpthread
 
 	# Library flags
-	LIBS := -lX11 -lpng -ljpeg
+	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui
 else ifeq ($(SYSTYPE),ghc)
 	# Flags for the C Preprocessor
 	CPPFLAGS := # Add GHC specific flags here

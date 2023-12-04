@@ -2,6 +2,7 @@
 
 #include "patch_match.h"
 #include "utils.h"
+#include <opencv2/opencv.hpp>
 
 void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 {
@@ -13,7 +14,8 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     mask_pyramid = new mask_t[n_levels];
     image_pyramid = new image_t[n_levels];
 
-    texture_t image_texture = texture_t(image.height, image.width);
+    // TODO: Write image to texture function
+    texture_t image_texture = texture_t::zeros(image.rows, image.cols, CV_8UC1);
 
     image_pyramid[0] = image;
     mask_pyramid[0] = mask;
@@ -21,30 +23,44 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     
     for(unsigned int i = 1; i < n_levels; ++i) {
         image_t previous_image = image_pyramid[i-1];
-        image_t next_level_image = gaussianFilter(previous_image);
-        image_t next_level_image_downsampled = image_t::downsample(next_level_image, 2);
+        image_t next_level_image;
+        cv::GaussianBlur(previous_image, next_level_image, cv::Size(0, 0), 1, 1);
+        image_t next_level_image_downsampled;
+        cv::resize(next_level_image, next_level_image_downsampled, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
         image_pyramid[i] = next_level_image_downsampled;
 
         int multiplier = pow(2, i);
-        texture_t next_level_texture = texture_t::downsample(texture_pyramid[0], multiplier);
+
+        texture_t next_level_texture;
+        cv::resize(texture_pyramid[0], next_level_texture, cv::Size(), 1.f/multiplier, 1.f/multiplier, cv::INTER_LINEAR);
         texture_pyramid[i] = next_level_texture;
 
-        mask_t next_level_mask = mask_t::downsample(mask_pyramid[i-1], 2);
+
+        mask_t next_level_mask;
+        cv::resize(mask_pyramid[i-1], next_level_mask, cv::Size(), 0.5, 0.5, cv::INTER_LINEAR);
         mask_pyramid[i] = next_level_mask;
     }
 
     for(unsigned int i = 1; i < n_levels; i++) {
-        image_pyramid[i] = image_t::pad(image_pyramid[i], half_size, half_size);
-        texture_pyramid[i] = texture_t::pad(texture_pyramid[i], half_size, half_size);
-        mask_pyramid[i] = mask_t::pad(mask_pyramid[i], half_size, half_size, true);
+        image_t padded_img;
+        cv::copyMakeBorder(image_pyramid[i], padded_img, half_size, half_size, half_size, half_size, cv::BORDER_REPLICATE);
+        image_pyramid[i] = padded_img;
+
+        texture_t padded_texture;
+        cv::copyMakeBorder(texture_pyramid[i], padded_texture, half_size, half_size, half_size, half_size, cv::BORDER_REPLICATE);
+        texture_pyramid[i] = padded_texture;
+
+        mask_t padded_mask;
+        cv::copyMakeBorder(mask_pyramid[i], padded_mask, half_size, half_size, half_size, half_size, cv::BORDER_CONSTANT, 0);
+        mask_pyramid[i] = padded_mask;
     }
 
     for(int i = 0; i < n_levels; i++) {
-        int image_h = image_pyramid[i].height;
-        int image_w = image_pyramid[i].width;
+        int image_h = image_pyramid[i].rows;
+        int image_w = image_pyramid[i].cols;
 
-        int mask_h = mask_pyramid[i].height;
-        int mask_w = mask_pyramid[i].width;
+        int mask_h = mask_pyramid[i].rows;
+        int mask_w = mask_pyramid[i].cols;
 
         assert(image_h == mask_h);
         assert(image_w == mask_w);
@@ -85,7 +101,7 @@ float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool mask
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
 
-    size_t image_h = image.height, image_w = image.width;
+    size_t image_h = image.rows, image_w = image.cols;
     assert(inBounds(centerA.j, centerA.i, image_w, image_h, half_size)); // Should always be in bounds (outside padding)
 
     mask_t mask = this->mask_pyramid[pyramid_idx];
@@ -98,7 +114,7 @@ float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool mask
 
         for (size_t r = regionA.row_start; r < regionA.row_end; r++) {
             for (size_t c = regionA.col_start; r < regionA.col_end; c++) {
-                occluded_patch_area += !mask(r, c);
+                occluded_patch_area += mask.at<bool>(r, c);
             }
         }
 
@@ -113,16 +129,16 @@ float PatchMatchInpainter::patchDistance(Vec2i centerA, Vec2i centerB, bool mask
             int regionA_r = centerA.i + dr, regionA_c = centerA.j + dc;
             int regionB_r = centerB.i + dr, regionB_c = centerB.j + dc;
 
-            if (masked && mask(regionA_r, regionA_c)) continue;
+            if (masked && mask.at<bool>(regionA_r, regionA_c)) continue;
 
-            RGBPixel rgb_difference = image(regionA_r, regionA_c) - image(regionB_r, regionB_c);
-            rgb_difference *= rgb_difference;
+            cv::Vec3b rgb_difference = image.at<cv::Vec3b>(regionA_r, regionA_c) - image.at<cv::Vec3b>(regionB_r, regionB_c);
+            rgb_difference = rgb_difference.mul(rgb_difference);
 
-            GradientPair texture_difference = texture(regionA_r, regionA_c) - texture(regionB_r, regionB_c);
-            texture_difference *= texture_difference;
+            cv::Vec2f texture_difference = texture.at<cv::Vec2f>(regionA_r, regionA_c) - texture.at<cv::Vec2f>(regionB_r, regionB_c);
+            texture_difference = cv::Vec2f(texture_difference[0]*texture_difference[0], texture_difference[1]*texture_difference[1]);
 
-            ssd_image += rgb_difference.r + rgb_difference.g + rgb_difference.b;
-            ssd_texture += texture_difference.grad_x + texture_difference.grad_y;
+            ssd_image += rgb_difference[0] + rgb_difference[1] + rgb_difference[1];
+            ssd_texture += texture_difference[0] + texture_difference[1];
         }
     }
 
@@ -137,7 +153,7 @@ image_t PatchMatchInpainter::reconstructImage()
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
 
-    size_t image_h = image.height, image_w = image.width;
+    size_t image_h = image.rows, image_w = image.cols;
     
 
 }
@@ -155,22 +171,22 @@ PatchMatchInpainter::PatchMatchInpainter(unsigned int n_levels, unsigned int pat
 
     // Initialize the level 0 shift map using random offsets for occluded pixels
     int last_level_index = n_levels - 1;
-    int coarse_image_h = this->image_pyramid[last_level_index].height;
-    int coarse_image_w = this->image_pyramid[last_level_index].width;
+    int coarse_image_h = this->image_pyramid[last_level_index].rows;
+    int coarse_image_w = this->image_pyramid[last_level_index].cols;
 
     for (int r = 0; r < coarse_image_h; r++) {
         for (int c = 0; c < coarse_image_h; c++) {
             Vec2i current_index = Vec2i(r, c);
             Vec2i candidate_index(current_index);
 
-            while (this->dilated_mask_pyramid[last_level_index](candidate_index.i, candidate_index.j))
+            while (this->dilated_mask_pyramid[last_level_index].at<bool>(candidate_index.i, candidate_index.j))
             {
                 int random_row = rand() % (coarse_image_h - 2 * half_size) + half_size;
                 int random_col = rand() % (coarse_image_w - 2 * half_size) + half_size;
                 candidate_index = Vec2i(random_row, random_col);
             }
 
-            this->shift_map_pyramid[last_level_index](r, c) = candidate_index - current_index;
+            this->shift_map_pyramid[last_level_index].at<cv::Vec2f>(r, c) = cv::Vec2f(candidate_index.i, candidate_index.j) - cv::Vec2f(current_index.i, current_index.j);
         }
     }
 }

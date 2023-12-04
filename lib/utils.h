@@ -17,6 +17,7 @@
 #include <cmath>
 #include <vector>
 #include <random>
+#include <opencv2/core.hpp>
 
 struct ImageSliceCoords {
     int row_start;
@@ -284,11 +285,11 @@ static Array2D<RGBPixel> gaussianFilter(Array2D<RGBPixel>& image) {
     return filtered_image;
 }
 
-typedef Array2D<Vec2i> shift_map_t;
-typedef Array2D<float> distance_map_t;
-typedef Array2D<GradientPair> texture_t;
-typedef Array2D<bool> mask_t;
-typedef Array2D<RGBPixel> image_t;
+typedef cv::Mat shift_map_t;
+typedef cv::Mat distance_map_t;
+typedef cv::Mat texture_t;
+typedef cv::Mat mask_t;
+typedef cv::Mat image_t;
 
 // template<typename T>
 // Array2D<T> downsampleArray(Array2D<T>& array, int dx) {
@@ -304,64 +305,64 @@ typedef Array2D<RGBPixel> image_t;
 //     return downsampled_array;
 // }
 
-static mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
-                              const bool block[3][3], unsigned int half_size=0,
-                              std::function<bool(bool, bool)> combineFn = [](bool a, bool b) { return a && b; })
-{
-    mask_t convolved_mask(mask); // Deep copy of the original mask
+// static mask_t structureBlockConvolve(const mask_t &mask, bool activeCenterVal,
+//                               const bool block[3][3], unsigned int half_size=0,
+//                               std::function<bool(bool, bool)> combineFn = [](bool a, bool b) { return a && b; })
+// {
+//     mask_t convolved_mask(mask); // Deep copy of the original mask
 
-    for (int r = 0; r < mask.height; r++) {
-        for (int c = 0; c < mask.width; c++) {
-            if (mask(r, c) != activeCenterVal) continue;
+//     for (int r = 0; r < mask.height; r++) {
+//         for (int c = 0; c < mask.width; c++) {
+//             if (mask(r, c) != activeCenterVal) continue;
 
-            // Iterate through structure block
-            for (int dr = -1; dr <= 1; dr++) {
-                for (int dc = -1; dc <= 1; dc++) {
-                    int px_r = r + dr, px_c = c + dc;
+//             // Iterate through structure block
+//             for (int dr = -1; dr <= 1; dr++) {
+//                 for (int dc = -1; dc <= 1; dc++) {
+//                     int px_r = r + dr, px_c = c + dc;
 
-                    if (!inBounds(px_c, px_r, mask.width, mask.height, half_size)) continue;
-                    convolved_mask(px_r, px_c) = combineFn(convolved_mask(px_r, px_c), block[dr + 1][dc + 1]);
-                }
-            }
-        }
-    }
+//                     if (!inBounds(px_c, px_r, mask.width, mask.height, half_size)) continue;
+//                     convolved_mask(px_r, px_c) = combineFn(convolved_mask(px_r, px_c), block[dr + 1][dc + 1]);
+//                 }
+//             }
+//         }
+//     }
 
-    return convolved_mask;
-}
+//     return convolved_mask;
+// }
 
-static mask_t dilateMask(const mask_t &mask, unsigned int half_size=0) {
-    const bool dilation_block[3][3] = {
-        {0, 1, 0},
-        {1, 1, 1},
-        {0, 1, 0}
-    };
+// static mask_t dilateMask(const mask_t &mask, unsigned int half_size=0) {
+//     const bool dilation_block[3][3] = {
+//         {0, 1, 0},
+//         {1, 1, 1},
+//         {0, 1, 0}
+//     };
 
-    auto dilation_fn = [](bool a, bool b) { return a || b; };
+//     auto dilation_fn = [](bool a, bool b) { return a || b; };
 
-    return structureBlockConvolve(mask, 1, dilation_block, half_size, dilation_fn);
-}
+//     return structureBlockConvolve(mask, 1, dilation_block, half_size, dilation_fn);
+// }
 
-static mask_t erodeMask(const mask_t &mask, unsigned int half_size=0) {
-    const bool erosion_block[3][3] = {
-        {1, 0, 1},
-        {0, 0, 0},
-        {1, 0, 1}
-    };
+// static mask_t erodeMask(const mask_t &mask, unsigned int half_size=0) {
+//     const bool erosion_block[3][3] = {
+//         {1, 0, 1},
+//         {0, 0, 0},
+//         {1, 0, 1}
+//     };
 
-    auto erosion_fn = [](bool a, bool b) { return a && b; };
+//     auto erosion_fn = [](bool a, bool b) { return a && b; };
 
-    return structureBlockConvolve(mask, 0, erosion_block, half_size, erosion_fn);
-}
+//     return structureBlockConvolve(mask, 0, erosion_block, half_size, erosion_fn);
+// }
 
-static bool maskNotEmpty(const mask_t &mask) {
-    for (int r = 0; r < mask.height; r++) {
-        for (int c = 0; c < mask.width; c++) {
-            if (mask(r, c)) return true;
-        }
-    }
+// static bool maskNotEmpty(const mask_t &mask) {
+//     for (int r = 0; r < mask.height; r++) {
+//         for (int c = 0; c < mask.width; c++) {
+//             if (mask(r, c)) return true;
+//         }
+//     }
 
-    return false;
-}
+//     return false;
+// }
 
 static int random_int(int lb, int ub) {
     static std::random_device dev;
