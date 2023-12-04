@@ -19,19 +19,6 @@
 #include <random>
 #include <opencv2/core.hpp>
 
-struct ImageSliceCoords {
-    int row_start;
-    int row_end;
-    int col_start;
-    int col_end;
-};
-
-const float GAUSSIAN_KERNEL[3][3] = {
-    {0.075113608, 0.123841403, 0.075113608},
-    {0.123841403, 0.204179956, 0.123841403},
-    {0.075113608, 0.123841403, 0.075113608}
-};
-
 static bool inBounds(int x, int y, int width, int height, int half_size=0) {
     return (x >= half_size && x < width - half_size && y >= half_size && y < height - half_size);
 }

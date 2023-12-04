@@ -9,10 +9,10 @@
 using namespace std;
 using namespace cv;
 
-struct Dimension {
-    unsigned int height;
-    unsigned int width;
-    unsigned int depth;
+enum AlgorithmStage {
+    INITIALIZATION = 0,
+    NORMAL = 1,
+    FINAL = 2
 };
 
 class PatchMatchInpainter {
@@ -27,10 +27,8 @@ private:
     mask_t *mask_pyramid;
     mask_t *dilated_mask_pyramid;
     image_t *image_pyramid;
-    Dimension *dimensions_pyramid;
 
-    mask_t initializationMask;
-    mask_t initializationBoundary;
+    Mat patch_dilation_element;
     
     Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
         int edge_size = cutoff_padding ? half_size : 0;
@@ -41,27 +39,6 @@ private:
         return region & image;
     }
 
-    // ImageSliceCoords relativePatchRegion(cv2::Vec2i center, bool cutoff_padding=false) {
-    //     auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
-    //     size_t edge_size = cutoff_padding ? half_size : 0;
-
-    //     ImageSliceCoords relative_region = patchRegion(center, cutoff_padding);
-    //     relative_region.row_start -= center.i;
-    //     relative_region.row_end -= center.i;
-    //     relative_region.col_start -= center.j;
-    //     relative_region.col_end -= center.j;
-
-    //     return relative_region;
-    // }
-
-    /**
-     * @brief Compute the image texture given the RGB image. The image texture is a 3D array where each element is defined as
-     * the 2D vector of absolute values of the image gradients in (x, y) at that point
-     * 
-     * @param image Original image
-     */
-    void textureFromImage(image_t image);
-
     /**
      * @brief Calculate the patch distance between patches A and B, each centered at a coordiante
      * 
@@ -70,7 +47,7 @@ private:
      * @param masked If mask=true, apply the mask from patch A to both patches before calculating distance
      * @return float Patch distance metric from A to B
      */
-    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, optional<reference_wrapper<mask_t>> init_shrinking_mask);
+    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage, optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is the result of a Gaussian kernel
@@ -120,15 +97,9 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    image_t reconstructImage(int pyramid_idx,
+    image_t reconstructImage(int pyramid_idx, AlgorithmStage stage,
                              optional<reference_wrapper<mask_t>> init_boundary_mask,
                              optional<reference_wrapper<mask_t>> init_shrinking_mask);
-
-    /**
-     * @brief Reconstruct the final image. This method does not use the weighted average of nearest neighbors of pixels
-     * in each neighborhood. Instead, it uses the single pixel with the lowest NN distance value.
-     */
-    void reconstructFinalImage();
 
     /**
      * @brief Perform onion-peel initialization of the image at the coarsest level of the image pyramid.
