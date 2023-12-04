@@ -2,6 +2,7 @@
 #define  __PATCH_MATCH_H__
 
 #include <optional>
+#include <opencv2/opencv.hpp>
 
 #include "utils.h"
 
@@ -30,29 +31,29 @@ private:
     mask_t initializationMask;
     mask_t initializationBoundary;
     
-    ImageSliceCoords patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
+    ImageSliceCoords patchRegion(cv::Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
         int edge_size = cutoff_padding ? half_size : 0;
 
         return ImageSliceCoords {
-            max(edge_size, center.i - half_size),
-            min((int)image_h - edge_size, center.i + half_size + 1),
-            max(edge_size, center.j - half_size),
-            min((int)image_w - edge_size, center.j + half_size + 1),
+            max(edge_size, center[0] - half_size),
+            min((int)image_h - edge_size, center[0] + half_size + 1),
+            max(edge_size, center[1] - half_size),
+            min((int)image_w - edge_size, center[1] + half_size + 1),
         };
     }
 
-    ImageSliceCoords relativePatchRegion(Vec2i center, bool cutoff_padding=false) {
-        auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
-        size_t edge_size = cutoff_padding ? half_size : 0;
+    // ImageSliceCoords relativePatchRegion(cv2::Vec2i center, bool cutoff_padding=false) {
+    //     auto level_height = this->dimensions_pyramid[curr_level].width, level_width = this->dimensions_pyramid[curr_level].height;
+    //     size_t edge_size = cutoff_padding ? half_size : 0;
 
-        ImageSliceCoords relative_region = patchRegion(center, level_height, level_width, cutoff_padding);
-        relative_region.row_start -= center.i;
-        relative_region.row_end -= center.i;
-        relative_region.col_start -= center.j;
-        relative_region.col_end -= center.j;
+    //     ImageSliceCoords relative_region = patchRegion(center, cutoff_padding);
+    //     relative_region.row_start -= center.i;
+    //     relative_region.row_end -= center.i;
+    //     relative_region.col_start -= center.j;
+    //     relative_region.col_end -= center.j;
 
-        return relative_region;
-    }
+    //     return relative_region;
+    // }
 
     /**
      * @brief Compute the image texture given the RGB image. The image texture is a 3D array where each element is defined as
@@ -70,8 +71,7 @@ private:
      * @param masked If mask=true, apply the mask from patch A to both patches before calculating distance
      * @return float Patch distance metric from A to B
      */
-    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB,
-                                         std::optional<reference_wrapper<mask_t>> init_shrinking_mask=std::nullopt);
+    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is the result of a Gaussian kernel
@@ -121,8 +121,9 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    image_t reconstructImage(int pyramid_idx, std::optional<reference_wrapper<mask_t>> init_boundary_mask=std::nullopt,
-                                              std::optional<reference_wrapper<mask_t>> init_shrinking_mask=std::nullopt);
+    image_t reconstructImage(int pyramid_idx,
+                             optional<reference_wrapper<mask_t>> init_boundary_mask,
+                             optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
     /**
      * @brief Reconstruct the final image. This method does not use the weighted average of nearest neighbors of pixels

@@ -20,7 +20,6 @@ const unsigned char COLOR_BLACK[] = {0,0,0};
 #include "utils.h"
 #include "patch_match.h"
 
-
 using namespace cimg_library;
 using namespace std;
 
@@ -160,54 +159,9 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO @dkrajews: Ensure this gives consistent results (i.e. rgb is in the right order)
-    // image_t img_array(height, width);
-    // mask_t mask_array(height, width);
+    Array3D<unsigned char> img_array(height, width, 3, image.data());
+    Array3D<bool> mask_array(height, width, 1, mask.data());
     
-    // for (int i = 0; i < height; i++) {
-    //     for (int j = 0; j < width; j++) {
-    //         unsigned char r = image(i, j, 0, 0);
-    //         unsigned char g = image(i, j, 0, 1);
-    //         unsigned char b = image(i, j, 0, 2);
-    //         img_array(i, j) = RGBPixel(r, g, b);
-    //         mask_array(i, j) = !mask(i, j);
-    //     }
-    // }
-
-    cv::Mat img_mat(height, width, CV_8UC3);
-    cimg_forXY(image, x, y) {
-        img_mat.at<cv::Vec3b>(y, x)[0] = image(x, y, 0, 2); // B
-        img_mat.at<cv::Vec3b>(y, x)[1] = image(x, y, 0, 1); // G
-        img_mat.at<cv::Vec3b>(y, x)[2] = image(x, y, 0, 0); // R
-    }
-
-    cv::Mat mask_mat(height, width, CV_8UC1);
-    cimg_forXY(mask, x, y) {
-        mask_mat.at<uchar>(y, x) = mask(x, y);
-    }
-
-    // PatchMatchInpainter inpainter(7, 5, img_array, mask_array);
-    
-
-    // Prints the mask to visually inspect and ensure its correct
-    // for(int i = 0; i < height; i++) {
-    //     for(int j = 0; j < width; j++) {
-    //         printf("%d ", mask_array(i, j));
-    //     }
-    //     printf("\n");
-    // }
-
-    // verify that reconstructed image works
-    // CImg<unsigned char> reconstructed_image(height, width, 1, 3, 0);
-    // cimg_forXY(reconstructed_image, x, y) {
-    //     RGBPixel pixel = img_array(x, y);
-    //     reconstructed_image(x, y, 0) = pixel.r;
-    //     reconstructed_image(x, y, 1) = pixel.g;
-    //     reconstructed_image(x, y, 2) = pixel.b;
-    // }
-    // CImgDisplay main_disp_2(reconstructed_image,"Reconstructed Image");
-    // while (!main_disp_2.is_closed()) {
-    //     main_disp_2.wait();
-    // }
     
 
     return EXIT_SUCCESS;
