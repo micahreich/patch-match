@@ -12,7 +12,7 @@ A good chunk of the time we have spent so far has been reading research papers t
 
 Based on the progress we have made thus far, we believe that diving deeper into the CPU parallelism that is achievable will be more fruitful than writing a CUDA implementation. Thus, we are modifying our goal and will exclusively focus on having a robust paralalleized CPU implementation. We plan on analyzing the different scheduling policies and parallel configurations that OpenMP offer. Aside from that, we are confident we will have a fully working algorithm and a live demo at the poster session. Below find an example of the inpainting algorithm result, implemented by us in Python:
 
-![]([docs/person-removal-example.png](https://github.com/micahreich/patch-match/blob/main/docs/person-removal-example.png))
+![](https://github.com/micahreich/patch-match/blob/main/docs/person-removal-example.png)
 
 ### Updated Schedule
 
