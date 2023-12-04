@@ -15,6 +15,12 @@ https://www.ipol.im/pub/art/2017/189/article.pdf
 
 ## Title: Parallel NNFs with PatchMatch
 Micah Reich (mreich), David Krajewski (dkrajews)
+
+## Milestone Report
+So far, we have a completed sequential version of the full image inpainting algorithm written in Python. Completing this was crucial since it allows us to have a reference for writing our C++ version as well as giving us an initial benchmark timing-wise. We have also been actively working on our C++ sequential implementation, and are roughly 75% done with it. We currently have an interface working that allows users to import an image and draw a mask around it that they wish to inpaint. Our implementation thus far has been really focused on writing code that will easily plug into OpenMP. The only portions left for our sequential version are the ANN (Approximate Nearest Neighbor) algorithm and then combining everything else we wrote to have the completed workflow. We are confident we will have meaningful results to show at the poster session.
+A good chunk of the time we have spent so far has been reading research papers that outline what we wish to implement. The initial paper we had wished to replicate unfortunately did not cover how one would implement content-aware image inpainting, thus requiring us to dig deeper. In our search, we found a paper that outlines exactly what we wish to accomplish for both images and videos, which is the current paper we are using as a reference for our implementation. We also came across another paper that replaces the Propagation step of the algorithm, which was initially not parallelizable, with a Jump Flood approach, allowing us to achieve high parallelization without sacrificing quality. 
+Overall, we believe we will accomplish the goals and deliverables we initially set out to achieve and will be able to have a live working demo at the poster session. We don't have any primary concerns at the moment.
+
 ## Summary
 We are going to implement a parallelized version of the PatchMatch algorithm for nearest-neighbor field (NNF) generation on GPU and CPU. NNFs can then be used to perform image inpainting or content-aware fill as well as optical flow for target tracking in video. Many of the other image operations within inpainting can also be handled in a data parallel fashion.
 
