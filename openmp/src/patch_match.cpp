@@ -19,79 +19,63 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     image_pyramid = new image_t[n_levels];
     dilated_mask_pyramid = new mask_t[n_levels];
 
-    // TODO: Write image to texture function
-    texture_t image_texture = texture_t::zeros(image.rows, image.cols, CV_8UC1);
-
     // Convert image to grayscale
-    cv::Mat gray_image;
-    cv::cvtColor(image, gray_image, cv::COLOR_BGR2GRAY);
+    Mat gray_image;
+    cvtColor(image, gray_image, COLOR_BGR2GRAY);
 
     // Compute gradients
-    cv::Mat gradient_x, gradient_y;
-    cv::Sobel(gray_image, gradient_x, CV_32F, 1, 0);
-    cv::Sobel(gray_image, gradient_y, CV_32F, 0, 1);
+    Mat gradient_x, gradient_y;
+    Sobel(gray_image, gradient_x, CV_32F, 1, 0);
+    Sobel(gray_image, gradient_y, CV_32F, 0, 1);
 
     // Compute absolute values of gradients
-    cv::Mat abs_gradient_x, abs_gradient_y;
-    cv::convertScaleAbs(gradient_x, abs_gradient_x);
-    cv::convertScaleAbs(gradient_y, abs_gradient_y);
+    Mat abs_gradient_x = abs(gradient_x), abs_gradient_y = abs(gradient_y);
+    Mat blurred_abs_gradient_x, blurred_abs_gradient_y;
 
-    // Initialize texture map
-    texture_t texture = texture_t::zeros(image.rows, image.cols, CV_32FC2);
+    int texture_blur_sidelen = 1 + pow(2, n_levels - 1);
 
-    // Calculate the finest level texture map from absolute values of image gradients
-    for(int i = 0; i < image.rows; i++) {
-        for(int j = 0; j < image.cols; j++) {
-            int sidelen = 1 + pow(2, n_levels - 1);
-            int halflen = sidelen / 2;
+    blur(abs_gradient_x, blurred_abs_gradient_x, Size(texture_blur_sidelen, texture_blur_sidelen));
+    blur(abs_gradient_y, blurred_abs_gradient_y, Size(texture_blur_sidelen, texture_blur_sidelen));
 
-            // Define texture region
-            cv::Rect texture_region = cv::Rect(std::max(0, j - halflen), std::max(0, i - halflen), sidelen, sidelen) & cv::Rect(0, 0, image.cols, image.rows);
-
-            // Compute texture
-            cv::Scalar sum_gradient_x = cv::sum(abs_gradient_x(texture_region));
-            cv::Scalar sum_gradient_y = cv::sum(abs_gradient_y(texture_region));
-
-            float cardinality = sidelen * sidelen;
-
-            texture.at<cv::Vec2f>(i, j)[0] = std::abs(sum_gradient_x[0] / cardinality);
-            texture.at<cv::Vec2f>(i, j)[1] = std::abs(sum_gradient_y[0] / cardinality);
-        }
-    }
-
-    image_texture = texture;
+    // Stack abs_gradient_x and abs_gradient_y along the 3rd dimension to form the texture matrix
+    Mat texture;
+    vector<Mat> channels = {abs_gradient_x, abs_gradient_y};
+    merge(channels, texture);
+    
+    // convertScaleAbs(gradient_x, abs_gradient_x);
+    // convertScaleAbs(gradient_y, abs_gradient_y);
 
     // Show the mask as a binary image
-    // cv::Mat binary_mask;
+    // Mat binary_mask;
     // mask.convertTo(binary_mask, CV_8U);
-    // cv::normalize(binary_mask, binary_mask, 0, 255, cv::NORM_MINMAX);
-    // cv::imshow("Binary Mask", binary_mask);
-    // cv::waitKey(0);
+    // normalize(binary_mask, binary_mask, 0, 255, NORM_MINMAX);
+    // imshow("Binary Mask", binary_mask);
+    // waitKey(0);
     
     // Display the first dimension of image texture
-    // std::vector<cv::Mat> channels(2);
-    // cv::split(texture, channels);
+    // std::vector<Mat> channels(2);
+    // split(texture, channels);
 
     // for (int i = 0; i < 2; ++i) {
     //     // Normalize the i-th channel to range [0, 255]
-    //     cv::Mat normalized;
-    //     cv::normalize(channels[i], normalized, 0, 255, cv::NORM_MINMAX);
+    //     Mat normalized;
+    //     normalize(channels[i], normalized, 0, 255, NORM_MINMAX);
 
     //     // Convert the floating-point matrix to an 8-bit grayscale image
-    //     cv::Mat grayscale;
+    //     Mat grayscale;
     //     normalized.convertTo(grayscale, CV_8U);
 
     //     // Display the image
-    //     cv::imshow("Channel " + std::to_string(i), grayscale);
+    //     imshow("Channel " + std::to_string(i), grayscale);
     // }
 
-    // cv::waitKey(0);
-    // cv::destroyAllWindows();
+    // waitKey(0);
+    // destroyAllWindows();
 
     image_pyramid[0] = image;
     mask_pyramid[0] = mask;
-    texture_pyramid[0] = image_texture;
-    cv::dilate(mask, dilated_mask_pyramid[0], cv::getStructuringElement(cv::MORPH_RECT, cv::Size(patch_size, patch_size)));
+    texture_pyramid[0] = texture;
+    dilate(mask, dilated_mask_pyramid[0], getStructuringElement(MORPH_RECT, Size(patch_size, patch_size)));
     
     for(unsigned int i = 1; i < n_levels; ++i) {
         image_t previous_image = image_pyramid[i-1], next_level_image;
@@ -99,7 +83,6 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
         GaussianBlur(previous_image, next_level_image, Size(0, 0), 1, 1);
         image_t next_level_image_downsampled;
         resize(next_level_image, next_level_image_downsampled, Size(), 0.5, 0.5, INTER_LINEAR);
-        cv::resize(next_level_image, next_level_image_downsampled, cv::Size(), 0.5, 0.5, cv::INTER_NEAREST_EXACT);
         image_pyramid[i] = next_level_image_downsampled;
 
         int multiplier = pow(2, i);
@@ -111,18 +94,17 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 
         mask_t next_level_mask;
         resize(mask_pyramid[i-1], next_level_mask, Size(), 0.5, 0.5, INTER_LINEAR);
-        cv::resize(mask_pyramid[i-1], next_level_mask, cv::Size(), 0.5, 0.5, cv::INTER_NEAREST_EXACT);
         mask_pyramid[i] = next_level_mask;
-        // cv::Mat boundary;
-        //  cv::getStructuringElement(cv::MORPH_RECT, cv::Size(patch_size, patch_size))
-        cv::dilate(mask_pyramid[i], dilated_mask_pyramid[i], cv::getStructuringElement(cv::MORPH_RECT, cv::Size(patch_size, patch_size)));
-        // cv::subtract(dilated_mask_pyramid[i], mask_pyramid[i], boundary);
+        // Mat boundary;
+        //  getStructuringElement(MORPH_RECT, Size(patch_size, patch_size))
+        dilate(mask_pyramid[i], dilated_mask_pyramid[i], getStructuringElement(MORPH_RECT, Size(patch_size, patch_size)));
+        // subtract(dilated_mask_pyramid[i], mask_pyramid[i], boundary);
 
-        // cv::Mat binary_mask;
+        // Mat binary_mask;
         // boundary.convertTo(binary_mask, CV_8U);
-        // cv::normalize(binary_mask, binary_mask, 0, 255, cv::NORM_MINMAX);
-        // cv::imshow("Binary Mask", binary_mask);
-        // cv::waitKey(0);
+        // normalize(binary_mask, binary_mask, 0, 255, NORM_MINMAX);
+        // imshow("Binary Mask", binary_mask);
+        // waitKey(0);
     }
 
     for(unsigned int i = 1; i < n_levels; i++) {
@@ -183,7 +165,7 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB,
                                          optional<reference_wrapper<mask_t>> init_shrinking_mask=nullopt)
-{   
+{
     mask_t shrinking_mask;
     if (pyramid_idx == 0) {
         assert(init_shrinking_mask != nullopt);
@@ -197,20 +179,16 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     size_t image_h = image.rows, image_w = image.cols;
     assert(inBounds(centerA[0], centerA[1], image_w, image_h, half_size)); // Should always be in bounds (outside padding)
 
-    float occluded_patch_area = patch_size * patch_size;
+    float unoccluded_patch_area = patch_size * patch_size;
     
     // If masked, calculate how many pixels are unmasked in the region
     if (pyramid_idx == 0) {
-        ImageSliceCoords regionA = patchRegion(centerA, image_h, image_w);
-        occluded_patch_area = 0.f;
+        Rect regionA = patchRegion(centerA, image_h, image_w, false);
+        
+        Scalar n_occluded = sum(shrinking_mask(regionA));
+        unoccluded_patch_area = regionA.area() - n_occluded[0];
 
-        for (size_t r = regionA.row_start; r < regionA.row_end; r++) {
-            for (size_t c = regionA.col_start; r < regionA.col_end; c++) {
-                occluded_patch_area += !shrinking_mask.at<bool>(r, c);
-            }
-        }
-
-        assert(occluded_patch_area > 0);
+        assert(unoccluded_patch_area > 0);
     }
 
     // Calculate the sum of squared differences between patches A and B in the RGB and texture image
@@ -234,7 +212,7 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
         }
     }
 
-    return 1.f / occluded_patch_area * (ssd_image + lambda * ssd_texture);
+    return 1.f / unoccluded_patch_area * (ssd_image + lambda * ssd_texture);
 }
 
 image_t PatchMatchInpainter::reconstructImage(int pyramid_idx,
@@ -269,11 +247,11 @@ image_t PatchMatchInpainter::reconstructImage(int pyramid_idx,
             vector<float> region_distances(patch_area, -1.f);
             vector<Vec2i> pixels(patch_area);
 
-            ImageSliceCoords safe_region = patchRegion(Vec2i(r, c), image_h, image_w, true);
+            Rect region = patchRegion(Vec2i(r, c), image_h, image_w, true);
 
             unsigned int k = 0;
-            for (int i = safe_region.row_start; i < safe_region.row_end; i++) {
-                for (int j = safe_region.col_start; j < safe_region.col_end; j++) {
+            for (int i = region.y; i < region.height; i++) {
+                for (int j = region.x; j < region.width; j++) {
                     if (pyramid_idx > 0 || (pyramid_idx == 0 && !shrinking_mask.at<bool>(i, j))) {
                         pixels[k] = Vec2i(i, j);
                         region_distances[k] = distance_map.at<float>(i, j);
@@ -331,7 +309,7 @@ mask_t boundaryMask(mask_t& mask, mask_t& dst, optional<reference_wrapper<mask_t
     mask_t eroded;
 
     if (eroded_mask == nullopt) {
-        Mat structure_elem = getStructuringElement(cv::MORPH_CROSS, cv::Size(3, 3));
+        Mat structure_elem = getStructuringElement(MORPH_CROSS, Size(3, 3));
         erode(mask, eroded, structure_elem);
     } else {
         eroded = eroded_mask->get();
@@ -348,14 +326,14 @@ void PatchMatchInpainter::onionPeelInit()
     while (nonEmptyMask(shrinking_mask)) {
         // Get the boundary of the shrinking mask
         mask_t eroded_shrinking_mask;
-        Mat structure_elem = getStructuringElement(cv::MORPH_CROSS, cv::Size(3, 3));
+        Mat structure_elem = getStructuringElement(MORPH_CROSS, Size(3, 3));
         erode(shrinking_mask, eroded_shrinking_mask, structure_elem);
 
         mask_t boundary_shrinking_mask;
         boundaryMask(shrinking_mask, boundary_shrinking_mask, eroded_shrinking_mask);
 
         // Perform ANN search for pixels on the shrinking mask boundary
-        approximateNearestNeighbor()
+        // approximateNearestNeighbor()
     }
 }
 
@@ -364,12 +342,12 @@ PatchMatchInpainter::PatchMatchInpainter(unsigned int n_levels, unsigned int pat
 {
     this->n_levels = n_levels;
     this->patch_size = patch_size;
-    this->half_size = patch_size/2;
+    this->half_size = patch_size / 2;
     // Initialize all image, texture, etc. pyramids given the initial image and mask
     initPyramids(image, mask);
 
     // Initialize the level 0 shift map using random offsets for occluded pixels
-    int last_level_index = n_levels - 1;
+    /*int last_level_index = n_levels - 1;
     int coarse_image_h = this->image_pyramid[last_level_index].rows;
     int coarse_image_w = this->image_pyramid[last_level_index].cols;
     for (int r = 0; r < coarse_image_h; r++) {
@@ -386,5 +364,5 @@ PatchMatchInpainter::PatchMatchInpainter(unsigned int n_levels, unsigned int pat
 
             this->shift_map_pyramid[last_level_index].at<Vec2i>(r, c) = candidate_index - current_index;
         }
-    }
+    }*/
 }

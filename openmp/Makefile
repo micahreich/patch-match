@@ -1,8 +1,6 @@
 OUTPUTDIR := bin/
 
 ifeq ($(SYSTYPE),mac)
-	
-
 	# Flags for the C Preprocessor
 	CPPFLAGS := -I/opt/homebrew/opt/jpeg/include -I/opt/homebrew/opt/libpng/include -I../lib -I/opt/X11/include
 
@@ -17,7 +15,7 @@ ifeq ($(SYSTYPE),mac)
 	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
 
 	# Library flags
-	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui
+	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
 else ifeq ($(SYSTYPE),ghc)
 	# Flags for the C Preprocessor
 	CPPFLAGS := # Add GHC specific flags here

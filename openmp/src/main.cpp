@@ -91,107 +91,100 @@ int main(int argc, char *argv[]) {
     FillMode curr_mode = FillMode::FILL;
 
     // Handle user events on the image canvas
-    while (!main_disp.is_closed()) {
-        main_disp.wait();
+    // while (!main_disp.is_closed()) {
+    //     main_disp.wait();
 
-        if (main_disp.is_key()) {
-            char curr_key = main_disp.key();
+    //     if (main_disp.is_key()) {
+    //         char curr_key = main_disp.key();
 
-            switch (main_disp.key()) {
-                case TOGGLE_FILL_ON:
-                    curr_mode = FillMode::FILL;
-                    break;
-                case TOGGLE_ERASE_ON:
-                    curr_mode = FillMode::ERASE;
-                    break;
-                case TOGGLE_BRUSH_RAD_INCR:
-                    brush_radius = min(min(image.width(), image.height()), static_cast<int>(ceil((1 + BRUSH_SIZE_MULT) * brush_radius)));
-                    break;
-                case TOGGLE_BRUSH_RAD_DECR:
-                    brush_radius = max(HALF_SIZE, static_cast<int>(floor((1 - BRUSH_SIZE_MULT) * brush_radius)));
-                    break;
-                case TOGGLE_SAVE:
-                    if (main_disp.is_keyCTRLLEFT())
-                        main_disp.close();
-                    break;
-            }
+    //         switch (main_disp.key()) {
+    //             case TOGGLE_FILL_ON:
+    //                 curr_mode = FillMode::FILL;
+    //                 break;
+    //             case TOGGLE_ERASE_ON:
+    //                 curr_mode = FillMode::ERASE;
+    //                 break;
+    //             case TOGGLE_BRUSH_RAD_INCR:
+    //                 brush_radius = min(min(image.width(), image.height()), static_cast<int>(ceil((1 + BRUSH_SIZE_MULT) * brush_radius)));
+    //                 break;
+    //             case TOGGLE_BRUSH_RAD_DECR:
+    //                 brush_radius = max(HALF_SIZE, static_cast<int>(floor((1 - BRUSH_SIZE_MULT) * brush_radius)));
+    //                 break;
+    //             case TOGGLE_SAVE:
+    //                 if (main_disp.is_keyCTRLLEFT())
+    //                     main_disp.close();
+    //                 break;
+    //         }
 
-            prev_key = curr_key;
-        } else {
-            prev_key = 0;
-        }
-
-        const int y = main_disp.mouse_y(), x = main_disp.mouse_x();
-
-        if (main_disp.button() && inBounds(x, y, width, height)) {
-            if (prev_x >= 0 && prev_y >= 0) {
-                // Interpolate points between (prev_x, prev_y) and (x, y)
-                int dx = x - prev_x;
-                int dy = y - prev_y;
-                int steps = max(abs(dx), abs(dy));
-
-                for (int i = 0; i <= steps; i++) {
-                    int inter_x = prev_x + i * dx / steps;
-                    int inter_y = prev_y + i * dy / steps;
-                    maskFillPatch(mask, masked_image, image, inter_x, inter_y, curr_mode, brush_radius);
-                }
-            } else {
-                maskFillPatch(mask, masked_image, image, x, y, curr_mode, brush_radius);
-            }
-
-            prev_x = x;
-            prev_y = y;
-        } else {
-            prev_x = prev_y = -1;
-        }
-        
-        CImg<unsigned char> display_image = masked_image;
-        if (inBounds(x, y, width, height))
-            display_image.draw_ellipse(x, y, brush_radius, brush_radius, 0, COLOR_WHITE, 1, ~0U);
-
-        // Draw the hotkeys information text
-        display_image.draw_text(10, 10, "1: Fill On", COLOR_WHITE, COLOR_BLACK);
-        display_image.draw_text(10, 30, "2: Erase On", COLOR_WHITE, COLOR_BLACK);
-        display_image.draw_text(10, 50, "x: Increase Brush Radius", COLOR_WHITE, COLOR_BLACK);
-        display_image.draw_text(10, 70, "z: Decrease Brush Radius", COLOR_WHITE, COLOR_BLACK);
-        display_image.draw_text(10, 90, "ctrl+s: Save", COLOR_WHITE, COLOR_BLACK);
-        
-        main_disp.display(display_image);
-    }
-
-    // TODO @dkrajews: Ensure this gives consistent results (i.e. rgb is in the right order)
-    Array3D<unsigned char> img_array(height, width, 3, image.data());
-    Array3D<bool> mask_array(height, width, 1, mask.data());
-    
-    // image_t img_array(height, width);
-    // mask_t mask_array(height, width);
-    
-    // for (int i = 0; i < height; i++) {
-    //     for (int j = 0; j < width; j++) {
-    //         unsigned char r = image(i, j, 0, 0);
-    //         unsigned char g = image(i, j, 0, 1);
-    //         unsigned char b = image(i, j, 0, 2);
-    //         img_array(i, j) = RGBPixel(r, g, b);
-    //         mask_array(i, j) = !mask(i, j);
+    //         prev_key = curr_key;
+    //     } else {
+    //         prev_key = 0;
     //     }
+
+    //     const int y = main_disp.mouse_y(), x = main_disp.mouse_x();
+
+    //     if (main_disp.button() && inBounds(x, y, width, height)) {
+    //         if (prev_x >= 0 && prev_y >= 0) {
+    //             // Interpolate points between (prev_x, prev_y) and (x, y)
+    //             int dx = x - prev_x;
+    //             int dy = y - prev_y;
+    //             int steps = max(abs(dx), abs(dy));
+
+    //             for (int i = 0; i <= steps; i++) {
+    //                 int inter_x = prev_x + i * dx / steps;
+    //                 int inter_y = prev_y + i * dy / steps;
+    //                 maskFillPatch(mask, masked_image, image, inter_x, inter_y, curr_mode, brush_radius);
+    //             }
+    //         } else {
+    //             maskFillPatch(mask, masked_image, image, x, y, curr_mode, brush_radius);
+    //         }
+
+    //         prev_x = x;
+    //         prev_y = y;
+    //     } else {
+    //         prev_x = prev_y = -1;
+    //     }
+        
+    //     CImg<unsigned char> display_image = masked_image;
+    //     if (inBounds(x, y, width, height))
+    //         display_image.draw_ellipse(x, y, brush_radius, brush_radius, 0, COLOR_WHITE, 1, ~0U);
+
+    //     // Draw the hotkeys information text
+    //     display_image.draw_text(10, 10, "1: Fill On", COLOR_WHITE, COLOR_BLACK);
+    //     display_image.draw_text(10, 30, "2: Erase On", COLOR_WHITE, COLOR_BLACK);
+    //     display_image.draw_text(10, 50, "x: Increase Brush Radius", COLOR_WHITE, COLOR_BLACK);
+    //     display_image.draw_text(10, 70, "z: Decrease Brush Radius", COLOR_WHITE, COLOR_BLACK);
+    //     display_image.draw_text(10, 90, "ctrl+s: Save", COLOR_WHITE, COLOR_BLACK);
+        
+    //     main_disp.display(display_image);
     // }
 
-    cv::Mat img_mat(height, width, CV_8UC3);
-    cimg_forXY(image, x, y) {
-        img_mat.at<cv::Vec3b>(y, x)[0] = image(x, y, 0, 2); // B
-        img_mat.at<cv::Vec3b>(y, x)[1] = image(x, y, 0, 1); // G
-        img_mat.at<cv::Vec3b>(y, x)[2] = image(x, y, 0, 0); // R
-    }
+    // Read in 2 images
+    cv::Mat test_image = cv::imread("src/max-image.png", cv::IMREAD_COLOR);
+    cv::Mat test_mask = cv::imread("src/max-mask.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat binary_mask;
 
-    cv::Mat mask_mat(height, width, CV_8UC1);
-    cimg_forXY(mask, x, y) {
-        mask_mat.at<bool>(y, x) = mask(x, y);
-    }
+    // Convert max_mask into a binary 1 channel image
+    cv::threshold(test_mask, binary_mask, 127, 255, cv::THRESH_BINARY);
 
-    // cv::namedWindow("First Dimension", cv::WINDOW_NORMAL);
-    // cv::imshow("First Dimension", img_mat);
-    // cv::waitKey(0);
+    // Display the binary mask and the test_image in a window
+    cv::namedWindow("Binary Mask", cv::WINDOW_NORMAL);
+    cv::imshow("Binary Mask", binary_mask);
+    cv::namedWindow("Test Image", cv::WINDOW_NORMAL);
+    cv::imshow("Test Image", test_image);
+    cv::waitKey(0);
 
+    // cv::Mat img_mat(height, width, CV_8UC3);
+    // cimg_forXY(image, x, y) {
+    //     img_mat.at<cv::Vec3b>(y, x)[0] = image(x, y, 0, 2); // B
+    //     img_mat.at<cv::Vec3b>(y, x)[1] = image(x, y, 0, 1); // G
+    //     img_mat.at<cv::Vec3b>(y, x)[2] = image(x, y, 0, 0); // R
+    // }
+
+    // cv::Mat mask_mat(height, width, CV_8UC1);
+    // cimg_forXY(mask, x, y) {
+    //     mask_mat.at<bool>(y, x) = mask(x, y);
+    // }
     
 
     // Prints the mask to visually inspect and ensure its correct
@@ -202,7 +195,7 @@ int main(int argc, char *argv[]) {
     //     printf("\n");
     // }
 
-    PatchMatchInpainter inpainter(4, 7, img_mat, mask_mat);
+    PatchMatchInpainter inpainter(4, 7, test_image, binary_mask);
 
 
     // verify that reconstructed image works

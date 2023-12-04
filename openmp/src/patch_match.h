@@ -7,6 +7,7 @@
 #include "utils.h"
 
 using namespace std;
+using namespace cv;
 
 struct Dimension {
     unsigned int height;
@@ -31,15 +32,13 @@ private:
     mask_t initializationMask;
     mask_t initializationBoundary;
     
-    ImageSliceCoords patchRegion(cv::Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
+    Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
         int edge_size = cutoff_padding ? half_size : 0;
 
-        return ImageSliceCoords {
-            max(edge_size, center[0] - half_size),
-            min((int)image_h - edge_size, center[0] + half_size + 1),
-            max(edge_size, center[1] - half_size),
-            min((int)image_w - edge_size, center[1] + half_size + 1),
-        };
+        Rect region = Rect(center[1] - half_size, center[0] - half_size, patch_size, patch_size);
+        Rect image = Rect(edge_size, edge_size, image_w - 2 * edge_size, image_h - 2 * edge_size);
+
+        return region & image;
     }
 
     // ImageSliceCoords relativePatchRegion(cv2::Vec2i center, bool cutoff_padding=false) {
@@ -98,9 +97,7 @@ public:
     PatchMatchInpainter(unsigned int n_levels, unsigned int patch_size,
                         image_t image, mask_t mask);
 
-    ~PatchMatchInpainter() {
-
-    };
+    ~PatchMatchInpainter();
     /**
      * @brief Perform the approximate nearest neighbor search for the current level. 
      * If level=0, perform approximate nearest neighbor search along only those pixels in the boundary mask
