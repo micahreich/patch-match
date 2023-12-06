@@ -508,6 +508,7 @@ void PatchMatchInpainter::onionPeelInit()
     }
 }
 
+
 PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params,
                                          image_t image, mask_t mask) : params(params)
 {
@@ -518,6 +519,7 @@ PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params,
     // TODO @dkrajews: is this gonna copy image and mask? should it? should we use references?
     initPyramids(image, mask);
 }
+
 
 PatchMatchInpainter::~PatchMatchInpainter()
 {
