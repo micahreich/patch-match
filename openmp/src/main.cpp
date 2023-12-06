@@ -38,7 +38,7 @@ void maskFillPatch(CImg<unsigned char> &mask, CImg<unsigned char> &masked_image,
                 int circle_x = x + j;
                 int circle_y = y + i;
 
-                if (inBounds(circle_x, circle_y, mask.width(), mask.height())) {
+                if (inBounds(circle_y, circle_x, mask.height(), mask.width())) {
                     mask(circle_x, circle_y) = curr_mode;
 
                     for (int k = 0; k < masked_image.spectrum(); k++) {
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
 
     //     const int y = main_disp.mouse_y(), x = main_disp.mouse_x();
 
-    //     if (main_disp.button() && inBounds(x, y, width, height)) {
+    //     if (main_disp.button() && inBounds(y, x, height, width)) {
     //         if (prev_x >= 0 && prev_y >= 0) {
     //             // Interpolate points between (prev_x, prev_y) and (x, y)
     //             int dx = x - prev_x;
@@ -194,8 +194,10 @@ int main(int argc, char *argv[]) {
     //     }
     //     printf("\n");
     // }
+    
+    PatchMatchParams params = PatchMatchParams();
 
-    PatchMatchInpainter inpainter(4, 7, test_image, binary_mask);
+    PatchMatchInpainter inpainter(params, test_image, binary_mask);
 
 
     // verify that reconstructed image works

@@ -15,11 +15,34 @@ enum AlgorithmStage {
     FINAL = 2
 };
 
+
+struct PatchMatchParams {
+    unsigned int n_levels;
+    unsigned int patch_size;
+    unsigned int half_size;
+    unsigned int n_iters;
+    unsigned int n_iters_init;
+    
+    float lambda;
+
+    // Default parameters
+    PatchMatchParams() : n_levels(5), patch_size(7), n_iters(10), n_iters_init(1), lambda(10.f) {
+        half_size = patch_size / 2;
+    }
+
+    PatchMatchParams(unsigned int n_levels, unsigned int patch_size, unsigned int n_iters, unsigned int n_iters_init, float lambda) :
+        n_levels(n_levels), patch_size(patch_size), n_iters(n_iters), n_iters_init(n_iters_init), lambda(lambda) {
+            half_size = patch_size / 2;
+        }
+};
+
+
 class PatchMatchInpainter {
 private:
-    int n_levels, patch_size, half_size;
-    int curr_level;
-    float lambda = 50;
+    PatchMatchParams params;
+    // int n_levels, patch_size, half_size;
+    // int curr_level;
+    // float lambda = 50;
 
     shift_map_t *shift_map_pyramid;
     distance_map_t *distance_map_pyramid;
@@ -31,12 +54,25 @@ private:
     Mat patch_dilation_element;
     
     Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding=false) {
-        int edge_size = cutoff_padding ? half_size : 0;
+        int edge_size = cutoff_padding ? params.half_size : 0;
 
-        Rect region = Rect(center[1] - half_size, center[0] - half_size, patch_size, patch_size);
+        Rect region = Rect(center[1] - params.half_size, center[0] - params.half_size, params.patch_size, params.patch_size);
         Rect image = Rect(edge_size, edge_size, image_w - 2 * edge_size, image_h - 2 * edge_size);
 
         return region & image;
+    }
+
+    Mat upsamplePad(const Mat &src, int padding) {
+        Rect inner_region = Rect(padding, padding, src.cols - 2 * padding, src.rows - 2 * padding);
+        Mat inner = src(inner_region);
+
+        Mat upsampled_src;
+        resize(src, upsampled_src, Size(), 2, 2, INTER_NEAREST);
+
+        Mat padded;
+        copyMakeBorder(upsampled_src, padded, padding, padding, padding, padding, BORDER_CONSTANT, Scalar::all(0));
+
+        return padded;
     }
 
     /**
@@ -59,19 +95,9 @@ private:
      * @param mask Original mask
      */
     void initPyramids(image_t image, mask_t mask);
-
-    /**
-     * @brief Get the current index into the image pyramid. We denote the initilization as level 0, meanwhile the rest
-     * of the stages take place at level 1 to level n_levels, but a curr_level of 0 and 1 should return 0 in this function.
-     * 
-     * @return unsigned int An index 0 <= index < n_levels into the pyramids
-     */
-    unsigned int getPyramidIndex() {
-        return max(curr_level - 1, 0);
-    } 
     
 public:
-    PatchMatchInpainter(unsigned int n_levels, unsigned int patch_size,
+    PatchMatchInpainter(PatchMatchParams params,
                         image_t image, mask_t mask);
 
     ~PatchMatchInpainter();
@@ -86,7 +112,9 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    shift_map_t approximateNearestNeighbor(distance_map_t &distance_map);
+    void approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage,
+                                    optional<reference_wrapper<mask_t>> init_boundary_mask,
+                                    optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
     /**
      * @brief Perform the image reconstruction step for the current level.
@@ -97,9 +125,9 @@ public:
      * @param shrinking_mask If level=0, the mask indicating the uninitialized portion of the hole
      * @param boundary_mask If level=0, the mask indicating pixels on the boundary of the uninitialized portion of the hole
      */
-    image_t reconstructImage(int pyramid_idx, AlgorithmStage stage,
-                             optional<reference_wrapper<mask_t>> init_boundary_mask,
-                             optional<reference_wrapper<mask_t>> init_shrinking_mask);
+    void reconstructImage(int pyramid_idx, AlgorithmStage stage,
+                          optional<reference_wrapper<mask_t>> init_boundary_mask,
+                          optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
     /**
      * @brief Perform onion-peel initialization of the image at the coarsest level of the image pyramid.

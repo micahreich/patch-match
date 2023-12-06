@@ -19,7 +19,7 @@
 #include <random>
 #include <opencv2/core.hpp>
 
-static bool inBounds(int x, int y, int width, int height, int half_size=0) {
+static bool inBounds(int y, int x, int height, int width, int half_size=0) {
     return (x >= half_size && x < width - half_size && y >= half_size && y < height - half_size);
 }
 
