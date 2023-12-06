@@ -62,7 +62,7 @@ private:
         return region & image;
     }
 
-    Mat upsamplePad(const Mat &src, int padding) {
+    Mat upsampleZeroPad(const Mat &src, int padding) {
         Rect inner_region = Rect(padding, padding, src.cols - 2 * padding, src.rows - 2 * padding);
         Mat inner = src(inner_region);
 

@@ -514,6 +514,8 @@ PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params,
     this->patch_dilation_element = getStructuringElement(MORPH_RECT, Size(this->params.patch_size, this->params.patch_size));
 
     // Initialize all image, texture, etc. pyramids given the initial image and mask
+
+    // TODO @dkrajews: is this gonna copy image and mask? should it? should we use references?
     initPyramids(image, mask);
 }
 
