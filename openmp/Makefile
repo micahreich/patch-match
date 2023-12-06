@@ -56,7 +56,7 @@ $(TARGETBIN): $(SOURCES) $(HEADERS)
 all: $(TARGETBIN)
 
 format:
-	clang-format -i src/*.cpp src/*.h
+	find . -iname *.h -o -iname *.cpp | xargs clang-format -i
 
 clean:
 	rm -rf ./pm-$(CONFIGURATION)
