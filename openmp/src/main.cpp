@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 #define PATCH_SIZE 7
 #define HALF_SIZE PATCH_SIZE / 2
@@ -16,45 +17,53 @@ const unsigned char MASK_COLOR[] = {0, 255, 0};
 const unsigned char COLOR_WHITE[] = {255,255,255};
 const unsigned char COLOR_BLACK[] = {0,0,0};
 
-#define cimg_use_png
-#include "CImg.h"
-#include "patch_match_utils.h"
-#include "patch_match.h"
 
-using namespace cimg_library;
+#include "patch_match.h"
+#include "utils.h"
+#include <unistd.h>
+
 using namespace std;
 
-enum FillMode {
-    ERASE = 0,
-    FILL = 1
-};
+const string WINDOW_NAME = "PhotoShop - CS418";
 
-bool debug_mode = false;
+enum FillMode { ERASE = 0, FILL = 1 };
 
-void maskFillPatch(CImg<unsigned char> &mask, CImg<unsigned char> &masked_image, CImg<unsigned char> &original_image,
-                   int x, int y, FillMode curr_mode, int brush_radius) {
-    for (int i = -brush_radius; i <= brush_radius; i++) {
-        for (int j = -brush_radius; j <= brush_radius; j++) {
-            if (i*i + j*j <= brush_radius*brush_radius) {
-                int circle_x = x + j;
-                int circle_y = y + i;
+cv::Point lastPoint(-1, -1);
+cv::Point currentMousePos(-1, -1);
+int brushRadius = 15; // Initial brush radius
+FillMode curr_mode = FillMode::FILL;
+cv::Mat drawingLayer;
+int n_levels = 0, patch_size = 0, lambda = 0;
+int minimum_levels = 1, minimum_patch_size = 5, minimum_lambda = 1;
 
-                if (inBounds(circle_y, circle_x, mask.height(), mask.width())) {
-                    mask(circle_x, circle_y) = curr_mode;
 
-                    for (int k = 0; k < masked_image.spectrum(); k++) {
-                        if (curr_mode == ERASE) {
-                            masked_image(circle_x, circle_y, 0, k) = original_image(circle_x, circle_y, 0, k);
-                        } else if (curr_mode == FILL) {
-                            masked_image(circle_x, circle_y, 0, k) = MASK_COLOR[k];
-                        }
-                    }
-                }
-            }
+void onMouse(int event, int x, int y, int flags, void* userdata) {
+    currentMousePos = {x, y};
+    if (event == cv::EVENT_LBUTTONDOWN) {
+        lastPoint = cv::Point(x, y);
+    } else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) {
+        if (lastPoint.x != -1) {
+            cv::Scalar color = curr_mode == FillMode::ERASE ? cv::Scalar(0, 0, 0, 0) : cv::Scalar(57, 255, 20, 1); // Transparent for eraser, red for drawing
+            // int thickness = curr_mode == FillMode::ERASE ? brushRadius * 2 : brushRadius; // Larger thickness for eraser for easier erasing
+            cv::line(drawingLayer, lastPoint, cv::Point(x, y), color, brushRadius, cv::LINE_AA, 0);
+            lastPoint = cv::Point(x, y);
         }
+    } else if (event == cv::EVENT_LBUTTONUP) {
+        lastPoint = cv::Point(-1, -1);
     }
 }
 
+void onLevelsChange(int new_value, void* userdata) {
+    n_levels = minimum_levels+new_value;
+}
+
+void onPatchSizeChange(int new_value, void* userdata) {
+    patch_size = minimum_patch_size+new_value;
+}
+
+void onLambdaChange(int new_value, void* userdata) {
+    lambda = minimum_lambda+new_value;
+}
 
 int main(int argc, char *argv[]) {
     // Read in user image with -i command line flag, or use lena.png as default
@@ -73,145 +82,89 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
         }
     }
-    
-    // Create the image and masked images to display
-    CImg<unsigned char> image(image_path);
-    CImg<unsigned char> masked_image(image);
 
-    int width = image.width();
-    int height = image.height();
-    int channels = image.spectrum();
-    int min_dimension = min(width, height);
+    cv::Mat image = cv::imread("./src/lena.png");
+    if (image.empty()) {
+        std::cerr << "Could not open or find the image!" << std::endl;
+        return -1;
+    }
+    drawingLayer = cv::Mat::zeros(image.size(), CV_8UC4);
+    cv::namedWindow(WINDOW_NAME);
+    cv::setMouseCallback(WINDOW_NAME, onMouse, &image);
+    cv::moveWindow(WINDOW_NAME, 100, 100);
 
-    CImg<unsigned char> mask(width, height, 1, 1, 0);
+    cv::createTrackbar("Num Levels", WINDOW_NAME, nullptr, 10, onLevelsChange);
+    cv::createTrackbar("Patch Size", WINDOW_NAME, nullptr, 25, onPatchSizeChange);
+    cv::createTrackbar("Lambda", WINDOW_NAME, nullptr, 10, onLambdaChange);
 
-    // CImgDisplay main_disp(mask, "PatchMatch Image Inpainting");
+    cv::setTrackbarPos("Num Levels", WINDOW_NAME, minimum_levels);
+    cv::setTrackbarPos("Patch Size", WINDOW_NAME, minimum_patch_size);
+    cv::setTrackbarPos("Lambda", WINDOW_NAME, minimum_lambda);
 
-    int prev_x = -1, prev_y = -1;
-    char prev_key = 0;
+    while (true) {
+        // cv::imshow("Paint on Image", image);
+        cv::Mat displayImage = image.clone();
+        cv::Mat tempImage = image.clone();
+        cv::cvtColor(image, tempImage, cv::COLOR_BGR2BGRA); // Convert image to have an alpha channel
+        cv::addWeighted(tempImage, 1.0, drawingLayer, 1.0, 0, displayImage);
+        if (currentMousePos.x != -1 && currentMousePos.y != -1) {
+            cv::Scalar outlineColor = curr_mode == FillMode::ERASE ? cv::Scalar(0, 0, 255, 255) : cv::Scalar(255, 0, 0, 255); // Blue for eraser, red for drawing
+            cv::circle(displayImage, currentMousePos, brushRadius/2, outlineColor, 1);
+        }
+        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+        double fontScale = 0.5;
+        int thickness = 1;
+        cv::Point textOrg(10, 30); // Position of the text
+        cv::Point offset(0, 20);
+        cv::Scalar textColor(0, 255, 0); // Green color
 
-    int brush_radius = max(HALF_SIZE, static_cast<int>(0.03 * min_dimension));
-
-    FillMode curr_mode = FillMode::FILL;
-
-    // Handle user events on the image canvas
-    // while (!main_disp.is_closed()) {
-    //     main_disp.wait();
-
-    //     if (main_disp.is_key()) {
-    //         char curr_key = main_disp.key();
-
-    //         switch (main_disp.key()) {
-    //             case TOGGLE_FILL_ON:
-    //                 curr_mode = FillMode::FILL;
-    //                 break;
-    //             case TOGGLE_ERASE_ON:
-    //                 curr_mode = FillMode::ERASE;
-    //                 break;
-    //             case TOGGLE_BRUSH_RAD_INCR:
-    //                 brush_radius = min(min(image.width(), image.height()), static_cast<int>(ceil((1 + BRUSH_SIZE_MULT) * brush_radius)));
-    //                 break;
-    //             case TOGGLE_BRUSH_RAD_DECR:
-    //                 brush_radius = max(HALF_SIZE, static_cast<int>(floor((1 - BRUSH_SIZE_MULT) * brush_radius)));
-    //                 break;
-    //             case TOGGLE_SAVE:
-    //                 if (main_disp.is_keyCTRLLEFT())
-    //                     main_disp.close();
-    //                 break;
-    //         }
-
-    //         prev_key = curr_key;
-    //     } else {
-    //         prev_key = 0;
-    //     }
-
-    //     const int y = main_disp.mouse_y(), x = main_disp.mouse_x();
-
-    //     if (main_disp.button() && inBounds(y, x, height, width)) {
-    //         if (prev_x >= 0 && prev_y >= 0) {
-    //             // Interpolate points between (prev_x, prev_y) and (x, y)
-    //             int dx = x - prev_x;
-    //             int dy = y - prev_y;
-    //             int steps = max(abs(dx), abs(dy));
-
-    //             for (int i = 0; i <= steps; i++) {
-    //                 int inter_x = prev_x + i * dx / steps;
-    //                 int inter_y = prev_y + i * dy / steps;
-    //                 maskFillPatch(mask, masked_image, image, inter_x, inter_y, curr_mode, brush_radius);
-    //             }
-    //         } else {
-    //             maskFillPatch(mask, masked_image, image, x, y, curr_mode, brush_radius);
-    //         }
-
-    //         prev_x = x;
-    //         prev_y = y;
-    //     } else {
-    //         prev_x = prev_y = -1;
-    //     }
+        cv::putText(displayImage, "Keys: [x]/[z] to change brush size", textOrg, fontFace, fontScale, textColor, thickness);
+        cv::putText(displayImage, "Keys: [1]/[2] to change fill mdoe", textOrg+offset, fontFace, fontScale, textColor, thickness);
         
-    //     CImg<unsigned char> display_image = masked_image;
-    //     if (inBounds(x, y, width, height))
-    //         display_image.draw_ellipse(x, y, brush_radius, brush_radius, 0, COLOR_WHITE, 1, ~0U);
-
-    //     // Draw the hotkeys information text
-    //     display_image.draw_text(10, 10, "1: Fill On", COLOR_WHITE, COLOR_BLACK);
-    //     display_image.draw_text(10, 30, "2: Erase On", COLOR_WHITE, COLOR_BLACK);
-    //     display_image.draw_text(10, 50, "x: Increase Brush Radius", COLOR_WHITE, COLOR_BLACK);
-    //     display_image.draw_text(10, 70, "z: Decrease Brush Radius", COLOR_WHITE, COLOR_BLACK);
-    //     display_image.draw_text(10, 90, "ctrl+s: Save", COLOR_WHITE, COLOR_BLACK);
         
-    //     main_disp.display(display_image);
-    // }
 
-    // Read in 2 images
-    cv::Mat test_image = cv::imread("src/max-image.png", cv::IMREAD_COLOR);
-    cv::Mat test_mask = cv::imread("src/max-mask.png", cv::IMREAD_COLOR);
-    cv::Mat grayscale_mask, binary_mask;
+        cv::imshow(WINDOW_NAME, displayImage);
 
-    // Convert max_mask into a binary 1 channel image
-    cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
-    cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
+        // cv::setTrackbarPos("Patch Size", "Paint on Image", patch_size);
 
-    double minVal, maxVal;
-    cv::minMaxLoc(binary_mask, &minVal, &maxVal);
-    printf("Max/min values in binary_mask: %f, %f\n", minVal, maxVal);
+        char key = cv::waitKey(1);
+        if (key == 27) // ESC key to exit
+            break;
+        else if (key == 'x') // Increase brush radius
+            brushRadius += 2;
+        else if (key == 'z' && brushRadius > 1) // Decrease brush radius
+            brushRadius -= 2;
+        else if (key == TOGGLE_FILL_ON) {
+            curr_mode = FillMode::FILL;
+        } else if (key == TOGGLE_ERASE_ON) {
+            curr_mode = FillMode::ERASE;
+        }
+    }
 
-    // Normalize binary_mask to 0-255
-    cv::Mat normalized_mask;
-    binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
+    // cv::imwrite("modified_image.jpg", image);
+    cv::destroyAllWindows();
 
-    // Display the binary mask and the test_image in a window
-    // cv::namedWindow("Binary Mask", cv::WINDOW_NORMAL);
-    // cv::imshow("Binary Mask", normalized_mask);
-    // cv::namedWindow("Test Image", cv::WINDOW_NORMAL);
-    // cv::imshow("Test Image", test_image);
-    // cv::waitKey(0);
+    // Get the drawn mask and convert it to a cv::Mat of 0s and 1s
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1);
+    cv::cvtColor(drawingLayer, mask, cv::COLOR_BGR2GRAY);
+    cv::threshold(mask, mask, 1, 255, cv::THRESH_BINARY);
+    cv::Mat mask_mat = mask > 0;
 
-    // cv::Mat img_mat(height, width, CV_8UC3);
-    // cimg_forXY(image, x, y) {
-    //     img_mat.at<cv::Vec3b>(y, x)[0] = image(x, y, 0, 2); // B
-    //     img_mat.at<cv::Vec3b>(y, x)[1] = image(x, y, 0, 1); // G
-    //     img_mat.at<cv::Vec3b>(y, x)[2] = image(x, y, 0, 0); // R
-    // }
-
-    // cv::Mat mask_mat(height, width, CV_8UC1);
-    // cimg_forXY(mask, x, y) {
-    //     mask_mat.at<bool>(y, x) = mask(x, y);
-    // }
-    
 
     // Prints the mask to visually inspect and ensure its correct
-    // for(int i = 0; i < height; i++) {
-    //     for(int j = 0; j < width; j++) {
+    // for(int i = 0; i < image.rows; i++) {
+    //     for(int j = 0; j < image.cols; j++) {
     //         printf("%d ", mask_mat.at<bool>(i, j));
     //     }
     //     printf("\n");
     // }
     
     PatchMatchParams params = PatchMatchParams();
-    PatchMatchInpainter inpainter(params, test_image, binary_mask);
-    inpainter.onionPeelInit();
+    params.n_levels = n_levels;
+    params.lambda = lambda;
+    params.patch_size = patch_size;
 
+    PatchMatchInpainter inpainter(params, image, mask_mat);
 
     // verify that reconstructed image works
     // CImg<unsigned char> reconstructed_image(height, width, 1, 3, 0);
