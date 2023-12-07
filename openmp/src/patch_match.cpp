@@ -12,7 +12,8 @@ using namespace cv;
 extern bool debug_mode;
 
 template <typename T>
-void printMat(const cv::Mat &mat) {
+void printMat(const cv::Mat &mat)
+{
     for (int i = 0; i < mat.rows; ++i) {
         for (int j = 0; j < mat.cols; ++j) {
             bool v = mat.at<T>(i, j);
@@ -23,7 +24,8 @@ void printMat(const cv::Mat &mat) {
     }
 }
 
-void PatchMatchInpainter::initPyramids(image_t image, mask_t mask) {
+void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
+{
     // Allocate space for all levels of the pyramid
     shift_map_pyramid = new shift_map_t[params.n_levels];
     distance_map_pyramid = new distance_map_t[params.n_levels];
@@ -201,7 +203,8 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask) {
 }
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
-                                         optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt) {
+                                         optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+{
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
     mask_t shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
@@ -268,7 +271,8 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
 void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage,
                                            optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-                                           optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt) {
+                                           optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+{
     mask_t boundary_mask, shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
         assert(init_boundary_mask != nullopt);
@@ -405,7 +409,8 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
     this->texture_pyramid[pyramid_idx] = updated_texture;
 }
 
-vector<int> jumpFloodRadii(int pyramid_idx, int max_dimension) {
+vector<int> jumpFloodRadii(int pyramid_idx, int max_dimension)
+{
     vector<int> radii = {max_dimension};
     while (radii.back() > 1) {
         radii.push_back(radii.back() / 2);
@@ -418,9 +423,10 @@ vector<int> jumpFloodRadii(int pyramid_idx, int max_dimension) {
     return radii;
 }
 
-void PatchMatchInpainter::approximateNearestNeighbor(
-    int pyramid_idx, AlgorithmStage stage, optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-    optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt) {
+void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage,
+                                                     optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
+                                                     optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+{
     mask_t boundary_mask, shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
         assert(init_boundary_mask != nullopt);
@@ -531,7 +537,8 @@ void PatchMatchInpainter::approximateNearestNeighbor(
     this->shift_map_pyramid[pyramid_idx] = *prev_shift_map;
 }
 
-Rect maskBoundingRect(mask_t &mask) {
+Rect maskBoundingRect(mask_t &mask)
+{
     int minRow = mask.rows - 1;
     int maxRow = 0;
     int minCol = mask.cols - 1;
@@ -551,7 +558,8 @@ Rect maskBoundingRect(mask_t &mask) {
     return Rect(minCol, minRow, maxCol - minCol, maxRow - minRow);
 }
 
-bool nonEmptyMask(mask_t &mask) {
+bool nonEmptyMask(mask_t &mask)
+{
     for (int r = 0; r < mask.rows; r++) {
         for (int c = 0; c < mask.cols; c++) {
             if (mask.at<bool>(r, c)) return true;
@@ -561,20 +569,23 @@ bool nonEmptyMask(mask_t &mask) {
     return false;
 }
 
-void boundaryMask(mask_t &mask, mask_t &dst, optional<reference_wrapper<mask_t>> eroded_mask = nullopt) {
+void boundaryMask(mask_t &mask, mask_t &dst, optional<reference_wrapper<mask_t>> eroded_mask = nullopt)
+{
     mask_t eroded;
 
     if (eroded_mask == nullopt) {
         Mat structure_elem = getStructuringElement(MORPH_CROSS, Size(3, 3));
         erode(mask, eroded, structure_elem);
-    } else {
+    }
+    else {
         eroded = eroded_mask->get();
     }
 
     subtract(mask, eroded, dst);
 }
 
-void PatchMatchInpainter::onionPeelInit() {
+void PatchMatchInpainter::onionPeelInit()
+{
     // Initialize the shrinking mask to be the initialization mask
     int pyramid_idx = params.n_levels - 1;
     mask_t shrinking_mask = this->dilated_mask_pyramid[pyramid_idx];
@@ -645,7 +656,8 @@ void PatchMatchInpainter::onionPeelInit() {
     }
 }
 
-PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params) {
+PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)
+{
     srand(time(0));
 
     this->patch_dilation_element =
@@ -658,7 +670,8 @@ PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image,
     initPyramids(image, mask);
 }
 
-PatchMatchInpainter::~PatchMatchInpainter() {
+PatchMatchInpainter::~PatchMatchInpainter()
+{
     delete[] shift_map_pyramid;
     delete[] distance_map_pyramid;
     delete[] texture_pyramid;

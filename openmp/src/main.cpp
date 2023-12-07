@@ -38,11 +38,13 @@ cv::Mat drawingLayer;
 int n_levels = 0, patch_size = 0, lambda = 0;
 int minimum_levels = 1, minimum_patch_size = 5, minimum_lambda = 1;
 
-void onMouse(int event, int x, int y, int flags, void* userdata) {
+void onMouse(int event, int x, int y, int flags, void* userdata)
+{
     currentMousePos = {x, y};
     if (event == cv::EVENT_LBUTTONDOWN) {
         lastPoint = cv::Point(x, y);
-    } else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) {
+    }
+    else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) {
         if (lastPoint.x != -1) {
             cv::Scalar color = curr_mode == FillMode::ERASE
                                    ? cv::Scalar(0, 0, 0, 0)
@@ -52,7 +54,8 @@ void onMouse(int event, int x, int y, int flags, void* userdata) {
             cv::line(drawingLayer, lastPoint, cv::Point(x, y), color, brushRadius, cv::LINE_AA, 0);
             lastPoint = cv::Point(x, y);
         }
-    } else if (event == cv::EVENT_LBUTTONUP) {
+    }
+    else if (event == cv::EVENT_LBUTTONUP) {
         lastPoint = cv::Point(-1, -1);
     }
 }
@@ -63,7 +66,8 @@ void onPatchSizeChange(int new_value, void* userdata) { patch_size = minimum_pat
 
 void onLambdaChange(int new_value, void* userdata) { lambda = minimum_lambda + new_value; }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     // Read in user image with -i command line flag, or use lena.png as default
     const char* image_path = "src/lena.png";
     int opt;

@@ -21,13 +21,15 @@ struct PatchMatchParams {
     float lambda;
 
     // Default parameters
-    PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_init(1), lambda(5.f) {
+    PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_init(1), lambda(5.f)
+    {
         half_size = patch_size / 2;
     }
 
     PatchMatchParams(unsigned int n_levels, unsigned int patch_size, unsigned int n_iters, unsigned int n_iters_init,
                      float lambda)
-        : n_levels(n_levels), patch_size(patch_size), n_iters(n_iters), n_iters_init(n_iters_init), lambda(lambda) {
+        : n_levels(n_levels), patch_size(patch_size), n_iters(n_iters), n_iters_init(n_iters_init), lambda(lambda)
+    {
         half_size = patch_size / 2;
     }
 };
@@ -45,7 +47,8 @@ class PatchMatchInpainter {
 
     Mat patch_dilation_element;
 
-    Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding = false) {
+    Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding = false)
+    {
         int edge_size = cutoff_padding ? params.half_size : 0;
 
         Rect region =
@@ -55,7 +58,8 @@ class PatchMatchInpainter {
         return region & image;
     }
 
-    Mat upsampleZeroPad(const Mat &src, int padding) {
+    Mat upsampleZeroPad(const Mat &src, int padding)
+    {
         Rect inner_region = Rect(padding, padding, src.cols - 2 * padding, src.rows - 2 * padding);
         Mat inner = src(inner_region);
 
