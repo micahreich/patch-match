@@ -18,10 +18,14 @@
 #include <vector>
 #include <random>
 #include <opencv2/core.hpp>
+#include <ctime>
+#include <cstdlib>
+
 
 static bool inBounds(int y, int x, int height, int width, int half_size=0) {
     return (x >= half_size && x < width - half_size && y >= half_size && y < height - half_size);
 }
+
 
 // template<typename T>
 // struct Vec2 {

@@ -4,7 +4,7 @@
 #include <opencv2/opencv.hpp>
 #include <optional>
 
-#include "utils.h"
+#include "patch_match_utils.h"
 
 using namespace std;
 using namespace cv;
@@ -21,7 +21,7 @@ struct PatchMatchParams {
     float lambda;
 
     // Default parameters
-    PatchMatchParams() : n_levels(5), patch_size(7), n_iters(10), n_iters_init(1), lambda(10.f) {
+    PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_init(1), lambda(5.f) {
         half_size = patch_size / 2;
     }
 
