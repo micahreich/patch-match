@@ -1,20 +1,43 @@
 # Parallel Patch Match
 
-## Resources
-https://gfx.cs.princeton.edu/pubs/Barnes_2009_PAR/patchmatch.pdf
-
-https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1211538 (pg 2+)
-
-https://cave.cs.columbia.edu/old/publications/pdfs/Kumar_ECCV08_2.pdf
-
-https://people.engr.tamu.edu/nimak/Data/ICCP14_MaskedPatches.pdf
-
-https://cs.brown.edu/courses/csci1290/2011/asgn/proj3/
-
-https://www.ipol.im/pub/art/2017/189/article.pdf
-
 ## Title: Parallel NNFs with PatchMatch
 Micah Reich (mreich), David Krajewski (dkrajews)
+
+## Milestone Report
+
+### Progress Update
+So far, we have a completed sequential version of the full image inpainting algorithm written in Python. Completing this was crucial since it allows us to have a reference for writing our C++ version as well as giving us an initial benchmark timing-wise. We have also been actively working on our C++ sequential implementation, and are roughly 75% done with it. We currently have an interface working that allows users to import an image and draw a mask around it that they wish to inpaint. Our implementation thus far has been really focused on writing code that will easily plug into OpenMP. The only portions left for our sequential version are the ANN (Approximate Nearest Neighbor) algorithm and then combining everything else we wrote to have the completed workflow. We are confident we will have meaningful results to show at the poster session.
+
+A good chunk of the time we have spent so far has been reading research papers that outline what we wish to implement. The initial paper we had found (PatchMatch) gave a general overview of the algorithm involved in searching for nearest neighbors but didn't go in-depth into the specifics of the implementation and did not have any information on content-aware fill. In our search, we found a paper that outlines exactly what we wish to accomplish for both images and videos, which is the current paper we are using as a reference for our implementation. We also came across another paper that replaces the Propagation step of the algorithm, which was initially not parallelizable, with a Jump Flood approach, allowing us to achieve high parallelization without sacrificing quality. 
+
+Based on the progress we have made thus far, we believe that diving deeper into the CPU parallelism that is achievable will be more fruitful than writing a CUDA implementation. Thus, we are modifying our goal and will exclusively focus on having a robust paralalleized CPU implementation. We plan on analyzing the different scheduling policies and parallel configurations that OpenMP offer. Aside from that, we are confident we will have a fully working algorithm and a live demo at the poster session. Below find an example of the inpainting algorithm result, implemented by us in Python:
+
+![](https://github.com/micahreich/patch-match/blob/main/docs/person-removal-example.png)
+
+### Updated Schedule
+
+Monday 12/4-Weds 12/6: Sequential + OpenMP
+- Micah: finish C++ implementation (sequential) of ANN search function with Jump Flood propagation, finish C++ implementation (sequential) of initialization and piece together each step into final algorithm
+- David: convert existing CImg UI to OpenCV UI, incrementally test C++ sequential version agaisnt Python (inspect image pyramids, blurring, dilation, erosion, etc) and benchmark sequential timing; start OpenMP conversion, mostly using parallel for pragmas to start
+
+Thurs 12/7-Monday 12/11: OpenMP + Benchmarking
+- Micah: Help David with debugging OpenMP if needed; begin work on expirementation with different OpenMP functions and scheduling policies 
+- David: Finish initial OpenMP implementation and benchmark all CPU parallel results and make figures. Start writing the final report (summary, background, approach) 
+
+Tuesday 12/12-Friday 12/15: Presentation Materials
+- Micah: Write results section of final report; Help David with finishing the poster and get it printed
+- David: Finish creating figures; help Micah finish the report paper; Create separate figures and explanations for the poster
+
+### Updated Goals
+As mentioned previously, we will be presenting an interface and OpenMP CPU-parallel version of PatchMatch inpainting algorithm at the poster session. Users can select an image and paint on a mask to be inpainted, then the algorithm will run and present + save the result. This implementation will take advantage of the 8 CPU cores available on GHC machines by using the OpenMP parallel work queue model, and much of the work can be parallelized at the pixel level.
+
+### Remaining Issues
+One issue which we had faced at the outset of the project was how to parallelize the propagation step of PatchMatch, since it requires spreading information from a pixel's above and left neighbors in a sequential fashion. While the random search step can be parallelized, given that the iterations alternate between propagation and random search for each pixel, this seemed like a big challenge. Luckily, we found that the authors were able to parallelize this algorithm using a Jump Flood-style technique often applied to the construction of Voronoi diagrams. In this method, we can, in parallel, "jump flood" nearest neighbors for all pixels, alternating between jump flooding at a given radius and random searching, doing this for all pixels in the mask. This has massively clarified our original issue.
+
+From here on out, it seems like it's just a matter of finishing the implementation and squashing bugs which come in our way. 
+
+## Project Proposal
+
 ## Summary
 We are going to implement a parallelized version of the PatchMatch algorithm for nearest-neighbor field (NNF) generation on GPU and CPU. NNFs can then be used to perform image inpainting or content-aware fill as well as optical flow for target tracking in video. Many of the other image operations within inpainting can also be handled in a data parallel fashion.
 
@@ -72,4 +95,18 @@ Week of December 4th:
 
 Week of December 11th:
 - Have a working demo with an interface
-- Continue to optimize implementation details and produce figures, speedup plots, etc. 
+- Continue to optimize implementation details and produce figures, speedup plots, etc.
+
+
+## Resources
+https://gfx.cs.princeton.edu/pubs/Barnes_2009_PAR/patchmatch.pdf
+
+https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1211538 (pg 2+)
+
+https://cave.cs.columbia.edu/old/publications/pdfs/Kumar_ECCV08_2.pdf
+
+https://people.engr.tamu.edu/nimak/Data/ICCP14_MaskedPatches.pdf
+
+https://cs.brown.edu/courses/csci1290/2011/asgn/proj3/
+
+https://www.ipol.im/pub/art/2017/189/article.pdf
