@@ -482,7 +482,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(
 
                         float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
                                                                  stage, init_shrinking_mask);
-                                                                 
+
                         if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
                             candidate_distance < best_distance) {
                             best_distance = candidate_distance;
