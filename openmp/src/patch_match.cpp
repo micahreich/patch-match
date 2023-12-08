@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 #include <optional>
 
+#include "cycle_timer.h"
 #include "patch_match_utils.h"
 
 using namespace std;
@@ -206,9 +207,14 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 }
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
+                                         double &time,
                                          optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt,
                                          string marker = "")
 {
+    // TODO @dkrajews: Turns out patchDistance is responsible for a shit load of the runtime ...
+
+    auto start = CycleTimer::currentSeconds();
+
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
     mask_t shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
@@ -242,18 +248,47 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
     float unoccluded_patch_area = params.patch_size * params.patch_size;
 
+    /* Vec3i image_ssds = Vec3i(0, 0, 0);
+    Vec2i texture_ssds = Vec2i(0, 0);
+
+    int hs = params.half_size;
+
+    for (int di = -hs; di <= hs; di++) {
+        for (int dj = -hs; dj <= hs; dj++) {
+            if (stage == AlgorithmStage::INITIALIZATION && shrinking_mask.at<bool>(centerA[0] + di, centerA[1] + dj)) {
+                --unoccluded_patch_area;
+                continue;
+            }
+
+            Vec3i image_difference = image.at<Vec3i>(centerA[0] + di, centerA[1] + dj) -
+                                     image.at<Vec3i>(centerB[0] + di, centerB[1] + dj);
+            image_difference = image_difference.mul(image_difference);
+            image_ssds += image_difference;
+
+            Vec2i texture_difference = texture.at<Vec2i>(centerA[0] + di, centerA[1] + dj) -
+                                       texture.at<Vec2i>(centerB[0] + di, centerB[1] + dj);
+            texture_difference = texture_difference.mul(texture_difference);
+            texture_ssds += texture_difference;
+        }
+    }
+
+
+    float total_ssd_image_sum = image_ssds[0] + image_ssds[1] + image_ssds[2];
+    float total_ssd_texture_sum = texture_ssds[0] + texture_ssds[1];
+
+    float distance = (1.f / unoccluded_patch_area) * (total_ssd_image_sum + params.lambda * total_ssd_texture_sum); */
+
     Mat image_regionA = image(regionA);
     Mat image_regionB = image(regionB);
 
     Mat texture_regionA = texture(regionA);
     Mat texture_regionB = texture(regionB);
 
-    // Mat image_regionA_float, image_regionB_float, texture_regionA_float, texture_regionB_float;
-    // // TODO @mreich/@dkrajews: store these in larger formats to avoid this constant conversion
-    // image_regionA.convertTo(image_regionA_float, CV_32F);
-    // image_regionB.convertTo(image_regionB_float, CV_32F);
-    // texture_regionA.convertTo(texture_regionA_float, CV_32F);
-    // texture_regionB.convertTo(texture_regionB_float, CV_32F);
+    // float total_ssd_image_sum, total_ssd_texture_sum = 0.f;
+
+    // TODO @dkrajews: More insight: its ~8x faster without doing any of the computation meaning the bulk of the time is
+    // not memory access/copying into image_regionX ... perhaps we look at ISPC for this if opencv isnt using it already
+    // I print out the openCV hardware info with getBuildInformation()... doesn't look like there's any intrinsics used.
 
     Mat image_region_difference = image_regionA - image_regionB;  // Sum of squared differences
     image_region_difference = image_region_difference.mul(image_region_difference);
@@ -280,7 +315,12 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     Scalar ssd_texture = sum(texture_region_difference);
     float total_ssd_texture_sum = ssd_texture[0] + ssd_texture[1];
 
-    return (1.f / unoccluded_patch_area) * (total_ssd_image_sum + params.lambda * total_ssd_texture_sum);
+    float distance = (1.f / unoccluded_patch_area) * (total_ssd_image_sum + params.lambda * total_ssd_texture_sum);
+
+    auto end = CycleTimer::currentSeconds();
+    time = end - start;
+
+    return distance;
 }
 
 void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage,
@@ -433,10 +473,17 @@ vector<int> jumpFloodRadii(int pyramid_idx, int max_dimension)
     return radii;
 }
 
-void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage,
+void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage, double &patch_distance_time,
                                                      optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
                                                      optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
 {
+    // TODO @dkrajews: when profiling ANN, also profile patchDistance. Inside patchDistance, I want to see if when I do
+    // something like image_regionA = image(regionA) -- which copies the image content -- significantly slows stuff down
+    // or not. If it does, then we should try to avoid copying the image content and instead just loop through the
+    // matrix directly computing values rather than using opencv's element-wise stuff
+
+    // We should do an extensive profiling of the function and see which parts take up the most time
+
     mask_t boundary_mask, shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
         assert(init_boundary_mask != nullopt);
@@ -473,6 +520,9 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
     vector<int> jump_flood_radii = jumpFloodRadii(pyramid_idx, max_image_dim);
 
+    double total_patch_distance_time = 0.f;
+    double pdt;
+
     for (int k = 0; k < jump_flood_radii.size(); k++) {
         int jump_flood_radius = jump_flood_radii[k];
 
@@ -485,11 +535,14 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
                 Vec2i curr_coordinate = Vec2i(r, c);
                 Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
+
                 float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift, stage,
-                                                    init_shrinking_mask, "marker");
+                                                    pdt, init_shrinking_mask, "marker");
+                total_patch_distance_time += pdt;
 
                 // Iterate through all 9 neighbors at the current jump flood radius
                 int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
+
                 for (auto dr : radii_offsets) {
                     for (auto dc : radii_offsets) {
                         Vec2i partner_coordinate = Vec2i(r + dr, c + dc);
@@ -503,7 +556,8 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
                             continue;
 
                         float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
-                                                                 stage, init_shrinking_mask);
+                                                                 stage, pdt, init_shrinking_mask);
+                        total_patch_distance_time += pdt;
 
                         if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
                             candidate_distance < best_distance) {
@@ -527,8 +581,9 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
                     if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size))
                         continue;
 
-                    float candidate_distance =
-                        patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate, stage, init_shrinking_mask);
+                    float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate, stage,
+                                                             pdt, init_shrinking_mask);
+                    total_patch_distance_time += pdt;
 
                     if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
                         candidate_distance < best_distance) {
@@ -548,6 +603,8 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
         // Swap active and previous shift map pointers between jump flood iterations
         std::swap(active_shift_map, prev_shift_map);
     }
+
+    patch_distance_time = total_patch_distance_time;
 
     // Place the most recently updated shift map back into the pyramid
     this->shift_map_pyramid[pyramid_idx] = *prev_shift_map;
@@ -660,7 +717,8 @@ void PatchMatchInpainter::onionPeelInit()
         }
 
         // Perform ANN search for pixels on the shrinking mask boundary
-        approximateNearestNeighbor(pyramid_idx, AlgorithmStage::INITIALIZATION,
+        double patch_distance_time;
+        approximateNearestNeighbor(pyramid_idx, AlgorithmStage::INITIALIZATION, patch_distance_time,
                                    optional<reference_wrapper<mask_t>>(ref(boundary_shrinking_mask)),
                                    optional<reference_wrapper<mask_t>>(ref(shrinking_mask)));
 
@@ -682,43 +740,45 @@ image_t PatchMatchInpainter::inpaint()
     if (debug_mode) {
         printf("Beginning onion peel initialization .....\n");
     }
-    auto onion_peel_init_start = chrono::high_resolution_clock::now();
+    auto onion_peel_init_start = CycleTimer::currentSeconds();
 
     onionPeelInit();
 
-    auto onion_peel_init_end = chrono::high_resolution_clock::now();
-    auto onion_peel_init_duration = chrono::duration_cast<ms>(onion_peel_init_end - onion_peel_init_start);
+    auto onion_peel_init_end = CycleTimer::currentSeconds();
+    auto onion_peel_init_duration = onion_peel_init_end - onion_peel_init_start;
     this->timing_stats.initialization_time = onion_peel_init_duration;
 
     imwrite("onion-peel-cpp.png", this->image_pyramid[params.n_levels - 1]);
 
     for (int l = params.n_levels - 1; l >= 0; --l) {
-        auto level_start = chrono::high_resolution_clock::now();
+        auto level_start = CycleTimer::currentSeconds();
 
-        this->timing_stats.ann_times.push_back(vector<ms>());
-        this->timing_stats.reconstruction_times.push_back(vector<ms>());
+        this->timing_stats.ann_times.push_back(vector<double>());
+        this->timing_stats.reconstruction_times.push_back(vector<double>());
 
         cout << "Level: " << l << " ....." << endl;
 
         for (int k = 0; k < params.n_iters; ++k) {
             if (debug_mode) printf("\tk = %d\n", k);
 
-            auto ann_start = chrono::high_resolution_clock::now();
+            auto ann_start = CycleTimer::currentSeconds();
 
             // Perform ANN search
-            approximateNearestNeighbor(l, AlgorithmStage::NORMAL);
+            double patch_distance_time;
+            approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
+            printf("patch_distance_time: %f ms\n", 1000.f * patch_distance_time);
 
-            auto ann_end = chrono::high_resolution_clock::now();
-            auto ann_duration = chrono::duration_cast<ms>(ann_end - ann_start);
+            auto ann_end = CycleTimer::currentSeconds();
+            auto ann_duration = ann_end - ann_start;
             this->timing_stats.ann_times[(params.n_levels - 1) - l].push_back(ann_duration);
 
-            auto reconstruction_start = chrono::high_resolution_clock::now();
+            auto reconstruction_start = CycleTimer::currentSeconds();
 
             // Perform image and texture reconstruction based on updated shift map
             reconstructImage(l, AlgorithmStage::NORMAL);
 
-            auto reconstruction_end = chrono::high_resolution_clock::now();
-            auto reconstruction_duration = chrono::duration_cast<ms>(reconstruction_end - reconstruction_start);
+            auto reconstruction_end = CycleTimer::currentSeconds();
+            auto reconstruction_duration = reconstruction_end - reconstruction_start;
             this->timing_stats.reconstruction_times[(params.n_levels - 1) - l].push_back(reconstruction_duration);
         }
 
@@ -745,8 +805,8 @@ image_t PatchMatchInpainter::inpaint()
             reconstructImage(l - 1, AlgorithmStage::NORMAL);
         }
 
-        auto level_end = chrono::high_resolution_clock::now();
-        auto level_duration = chrono::duration_cast<ms>(level_end - level_start);
+        auto level_end = CycleTimer::currentSeconds();
+        auto level_duration = level_end - level_start;
         this->timing_stats.level_times.push_back(level_duration);
     }
 
@@ -764,6 +824,7 @@ image_t PatchMatchInpainter::inpaint()
 PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)
 {
     srand(time(0));
+    cout << cv::getBuildInformation() << endl;
 
     this->timing_stats = TimingStats();
 
@@ -774,12 +835,13 @@ PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image,
 
     // TODO @dkrajews: is this gonna copy image and mask? should it? should we
     // use references?
-    auto start = chrono::high_resolution_clock::now();
+    auto start = CycleTimer::currentSeconds();
 
     initPyramids(image, mask);
 
-    auto end = chrono::high_resolution_clock::now();
-    this->timing_stats.pyramid_build_time = chrono::duration_cast<ms>(end - start);
+    auto end = CycleTimer::currentSeconds();
+
+    this->timing_stats.pyramid_build_time = end - start;
 }
 
 PatchMatchInpainter::~PatchMatchInpainter()

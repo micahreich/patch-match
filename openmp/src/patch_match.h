@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 #include <optional>
 
+#include "cycle_timer.h"
 #include "patch_match_utils.h"
 
 using namespace std;
@@ -40,12 +41,12 @@ struct PatchMatchParams {
 };
 
 struct TimingStats {
-    ms pyramid_build_time;
-    ms initialization_time;
+    double pyramid_build_time;
+    double initialization_time;
 
-    vector<ms> level_times;
-    vector<vector<ms>> ann_times;
-    vector<vector<ms>> reconstruction_times;
+    vector<double> level_times;
+    vector<vector<double>> ann_times;
+    vector<vector<double>> reconstruction_times;
 
     void prettyPrint()
     {
@@ -56,37 +57,33 @@ struct TimingStats {
         int n_levels = level_times.size();
 
         for (int i = 0; i < n_levels; ++i) {
-            cout << "Level " << i << " times: " << endl;
+            printf("Level %d times: \n", n_levels - 1 - i);
 
-            ms total_ann_time_ms = std::accumulate(ann_times[i].begin(), ann_times[i].end(), ms(0));
-            ms total_reconstruction_time_ms =
-                std::accumulate(reconstruction_times[i].begin(), reconstruction_times[i].end(), ms(0));
+            double total_ann_time_ms = std::accumulate(ann_times[i].begin(), ann_times[i].end(), 0.f);
+            double total_reconstruction_time_ms =
+                std::accumulate(reconstruction_times[i].begin(), reconstruction_times[i].end(), 0.f);
 
-            double avg_ann_time = total_ann_time_ms.count() / static_cast<double>(ann_times[i].size());
+            double avg_ann_time = total_ann_time_ms / static_cast<double>(ann_times[i].size());
             double avg_reconstruction_time =
-                total_reconstruction_time_ms.count() / static_cast<double>(reconstruction_times[i].size());
-            double level_time = level_times[i].count();
+                total_reconstruction_time_ms / static_cast<double>(reconstruction_times[i].size());
+            double level_time = level_times[i];
 
             total_ann_time += avg_ann_time;
             total_reconstruction_time += avg_reconstruction_time;
             total_time += level_time;
 
-            cout << "\t"
-                 << "Level " << i << " average ANN time:            " << avg_ann_time << " ms" << endl;
-            cout << "\t"
-                 << "Level " << i << " average reconstruction time: " << avg_reconstruction_time << " ms" << endl;
-            cout << "\t"
-                 << "Level " << i << " total time:                  " << level_time << " ms" << endl;
-            cout << endl;
+            printf("\tLevel %d average ANN time:            %.2f ms\n", i, 1000.f * avg_ann_time);
+            printf("\tLevel %d average reconstruction time: %.2f ms\n", i, 1000.f * avg_reconstruction_time);
+            printf("\tLevel %d total time:                  %.2f ms\n", i, 1000.f * level_time);
         }
 
-        cout << "-----------------------------------" << endl;
-        cout << "Pyramid build time:                " << pyramid_build_time.count() << " ms" << endl;
-        cout << "Initialization time:               " << initialization_time.count() << " ms" << endl;
-        cout << endl;
-        cout << "Total average ANN time:            " << total_ann_time / n_levels << " ms" << endl;
-        cout << "Total average reconstruction time: " << total_reconstruction_time / n_levels << " ms" << endl;
-        cout << "Total time:                        " << total_time << " ms" << endl;
+        printf("-----------------------------------\n");
+        printf("Pyramid build time:                %.2f ms\n", 1000.f * pyramid_build_time);
+        printf("Initialization time:               %.2f ms\n", 1000.f * initialization_time);
+        printf("\n");
+        printf("Total average ANN time:            %.2f ms\n", 1000.f * total_ann_time / n_levels);
+        printf("Total average reconstruction time: %.2f ms\n", 1000.f * total_reconstruction_time / n_levels);
+        printf("Total time:                        %.2f s\n", total_time);
     }
 };
 
@@ -142,7 +139,7 @@ class PatchMatchInpainter {
      * before calculating distance
      * @return float Patch distance metric from A to B
      */
-    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
+    float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage, double &time,
                         optional<reference_wrapper<mask_t>> init_shrinking_mask, string marker);
 
     /**
@@ -177,7 +174,7 @@ class PatchMatchInpainter {
      * @param boundary_mask If level=0, the mask indicating pixels on the
      * boundary of the uninitialized portion of the hole
      */
-    void approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage,
+    void approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage, double &patch_distance_time,
                                     optional<reference_wrapper<mask_t>> init_boundary_mask,
                                     optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
