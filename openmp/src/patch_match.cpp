@@ -1,6 +1,7 @@
 #include "patch_match.h"
 
 #include <cassert>
+#include <chrono>
 #include <opencv2/opencv.hpp>
 #include <optional>
 
@@ -654,6 +655,50 @@ void PatchMatchInpainter::onionPeelInit()
         // Update the shrinking mask to be the eroded version of itself
         shrinking_mask = eroded_shrinking_mask;
     }
+}
+
+image_t PatchMatchInpainter::inpaint()
+{
+    auto start_time = chrono::high_resolution_clock::now();
+
+    if (debug_mode) {
+        printf("Beginning onion peel initialization .....\n");
+    }
+    onionPeelInit();
+
+    for (int l = params.n_levels - 1; l >= 0; --l) {
+        if (debug_mode) {
+            printf("Level: %d .....\n", l);
+        }
+
+        for (int k = 0; k < params.n_iters; ++k) {
+            if (debug_mode) {
+                printf("\tk = %d: %d\n", k);
+            }
+
+            approximateNearestNeighbor(l, AlgorithmStage::NORMAL);
+            reconstructImage(l, AlgorithmStage::NORMAL);
+        }
+
+        if (l == 0) {
+            reconstructImage(l, AlgorithmStage::FINAL);
+        }
+        else {
+            shift_map_t upsampled_shift_map = upsampleZeroPad(this->shift_map_pyramid[l], params.half_size);
+            distance_map_t upsampled_distance_map = upsampleZeroPad(this->distance_map_pyramid[l], params.half_size);
+
+            this->shift_map_pyramid[l - 1] = upsampled_shift_map;
+            this->distance_map_pyramid[l - 1] = upsampled_distance_map;
+
+            reconstructImage(l - 1, AlgorithmStage::NORMAL);
+        }
+    }
+
+    auto end_time = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+
+    printf("Inpainting took %ld ms on image of size (%d, %d)\n", duration.count(), this->image_pyramid[0].rows,
+           this->image_pyramid[0].cols);
 }
 
 PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)

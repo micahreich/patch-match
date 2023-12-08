@@ -147,7 +147,7 @@ class PatchMatchInpainter {
      * region using the onion-peel method, then perform the iterative ANN
      * search, reconstruction, and upsampling procedure
      */
-    void inpaint();
+    image_t inpaint();
 };
 
 #endif
