@@ -85,66 +85,65 @@ int main(int argc, char* argv[])
         }
     }
 
-    // cv::Mat image = cv::imread("./src/lena.png");
-    // if (image.empty()) {
-    //     std::cerr << "Could not open or find the image!" << std::endl;
-    //     return -1;
-    // }
-    // drawingLayer = cv::Mat::zeros(image.size(), CV_8UC4);
-    // cv::namedWindow(WINDOW_NAME);
-    // cv::setMouseCallback(WINDOW_NAME, onMouse, &image);
-    // cv::moveWindow(WINDOW_NAME, 100, 100);
+    cv::Mat image = cv::imread("./src/lena.png");
+    if (image.empty()) {
+        std::cerr << "Could not open or find the image!" << std::endl;
+        return -1;
+    }
+    drawingLayer = cv::Mat::zeros(image.size(), CV_8UC4);
+    cv::namedWindow(WINDOW_NAME);
+    cv::setMouseCallback(WINDOW_NAME, onMouse, &image);
+    cv::moveWindow(WINDOW_NAME, 100, 100);
 
-    // cv::createTrackbar("Num Levels", WINDOW_NAME, nullptr, 10, onLevelsChange);
-    // cv::createTrackbar("Patch Size", WINDOW_NAME, nullptr, 25, onPatchSizeChange);
-    // cv::createTrackbar("Lambda", WINDOW_NAME, nullptr, 10, onLambdaChange);
+    cv::createTrackbar("Num Levels", WINDOW_NAME, nullptr, 10, onLevelsChange);
+    cv::createTrackbar("Patch Size", WINDOW_NAME, nullptr, 25, onPatchSizeChange);
+    cv::createTrackbar("Lambda", WINDOW_NAME, nullptr, 10, onLambdaChange);
 
-    // cv::setTrackbarPos("Num Levels", WINDOW_NAME, minimum_levels);
-    // cv::setTrackbarPos("Patch Size", WINDOW_NAME, minimum_patch_size);
-    // cv::setTrackbarPos("Lambda", WINDOW_NAME, minimum_lambda);
+    cv::setTrackbarPos("Num Levels", WINDOW_NAME, minimum_levels);
+    cv::setTrackbarPos("Patch Size", WINDOW_NAME, minimum_patch_size);
+    cv::setTrackbarPos("Lambda", WINDOW_NAME, minimum_lambda);
 
-    // while (true) {
-    //     // cv::imshow("Paint on Image", image);
-    //     cv::Mat displayImage = image.clone();
-    //     cv::Mat tempImage = image.clone();
-    //     cv::cvtColor(image, tempImage, cv::COLOR_BGR2BGRA); // Convert image to have an alpha channel
-    //     cv::addWeighted(tempImage, 1.0, drawingLayer, 1.0, 0, displayImage);
-    //     if (currentMousePos.x != -1 && currentMousePos.y != -1) {
-    //         cv::Scalar outlineColor = curr_mode == FillMode::ERASE ? cv::Scalar(0, 0, 255, 255) : cv::Scalar(255, 0,
-    //         0, 255); // Blue for eraser, red for drawing cv::circle(displayImage, currentMousePos, brushRadius/2,
-    //         outlineColor, 1);
-    //     }
-    //     int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-    //     double fontScale = 0.5;
-    //     int thickness = 1;
-    //     cv::Point textOrg(10, 30); // Position of the text
-    //     cv::Point offset(0, 20);
-    //     cv::Scalar textColor(0, 255, 0); // Green color
+    while (true) {
+        // cv::imshow("Paint on Image", image);
+        cv::Mat displayImage = image.clone();
+        cv::Mat tempImage = image.clone();
+        cv::cvtColor(image, tempImage, cv::COLOR_BGR2BGRA); // Convert image to have an alpha channel
+        cv::addWeighted(tempImage, 1.0, drawingLayer, 1.0, 0, displayImage);
+        if (currentMousePos.x != -1 && currentMousePos.y != -1) {
+            cv::Scalar outlineColor = curr_mode == FillMode::ERASE ? cv::Scalar(0, 0, 255, 255) : cv::Scalar(255, 0, 0, 255); // Blue for eraser, red for drawing cv::circle(displayImage, currentMousePos, brushRadius/2,
+            // outlineColor, 1);
+        }
+        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+        double fontScale = 0.5;
+        int thickness = 1;
+        cv::Point textOrg(10, 30); // Position of the text
+        cv::Point offset(0, 20);
+        cv::Scalar textColor(0, 255, 0); // Green color
 
-    //     cv::putText(displayImage, "Keys: [x]/[z] to change brush size", textOrg, fontFace, fontScale, textColor,
-    //     thickness); cv::putText(displayImage, "Keys: [1]/[2] to change fill mdoe", textOrg+offset, fontFace,
-    //     fontScale, textColor, thickness);
+        cv::putText(displayImage, "Keys: [x]/[z] to change brush size", textOrg, fontFace, fontScale, textColor,
+        thickness); cv::putText(displayImage, "Keys: [1]/[2] to change fill mdoe", textOrg+offset, fontFace,
+        fontScale, textColor, thickness);
 
-    //     cv::imshow(WINDOW_NAME, displayImage);
+        cv::imshow(WINDOW_NAME, displayImage);
 
-    //     // cv::setTrackbarPos("Patch Size", "Paint on Image", patch_size);
+        // cv::setTrackbarPos("Patch Size", "Paint on Image", patch_size);
 
-    //     char key = cv::waitKey(1);
-    //     if (key == 27) // ESC key to exit
-    //         break;
-    //     else if (key == 'x') // Increase brush radius
-    //         brushRadius += 2;
-    //     else if (key == 'z' && brushRadius > 1) // Decrease brush radius
-    //         brushRadius -= 2;
-    //     else if (key == TOGGLE_FILL_ON) {
-    //         curr_mode = FillMode::FILL;
-    //     } else if (key == TOGGLE_ERASE_ON) {
-    //         curr_mode = FillMode::ERASE;
-    //     }
-    // }
+        char key = cv::waitKey(1);
+        if (key == 27) // ESC key to exit
+            break;
+        else if (key == 'x') // Increase brush radius
+            brushRadius += 2;
+        else if (key == 'z' && brushRadius > 1) // Decrease brush radius
+            brushRadius -= 2;
+        else if (key == TOGGLE_FILL_ON) {
+            curr_mode = FillMode::FILL;
+        } else if (key == TOGGLE_ERASE_ON) {
+            curr_mode = FillMode::ERASE;
+        }
+    }
 
-    // // cv::imwrite("modified_image.jpg", image);
-    // cv::destroyAllWindows();
+    // cv::imwrite("modified_image.jpg", image);
+    cv::destroyAllWindows();
 
     // // Get the drawn mask and convert it to a cv::Mat of 0s and 1s
     // cv::Mat mask = cv::Mat::zeros(image.size(), CV_8UC1);
