@@ -1,4 +1,4 @@
-#include <omp.h>
+// #include <omp.h>
 #include <stdint.h>
 
 #include <iostream>
@@ -198,7 +198,6 @@ int main(int argc, char* argv[])
 
     double minVal, maxVal;
     cv::minMaxLoc(binary_mask, &minVal, &maxVal);
-    printf("Max/min values in binary_mask: %f, %f\n", minVal, maxVal);
 
     // Normalize binary_mask to 0-255
     cv::Mat normalized_mask;

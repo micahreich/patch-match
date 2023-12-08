@@ -1,6 +1,7 @@
 #ifndef __PATCH_MATCH_H__
 #define __PATCH_MATCH_H__
 
+#include <chrono>
 #include <opencv2/opencv.hpp>
 #include <optional>
 
@@ -12,6 +13,8 @@ using namespace cv;
 extern bool debug_mode;
 
 enum AlgorithmStage { INITIALIZATION = 0, NORMAL = 1, FINAL = 2 };
+
+typedef chrono::milliseconds ms;
 
 struct PatchMatchParams {
     unsigned int n_levels;
@@ -36,9 +39,62 @@ struct PatchMatchParams {
     }
 };
 
+struct TimingStats {
+    ms pyramid_build_time;
+    ms initialization_time;
+
+    vector<ms> level_times;
+    vector<vector<ms>> ann_times;
+    vector<vector<ms>> reconstruction_times;
+
+    void prettyPrint()
+    {
+        double total_ann_time = 0;
+        double total_reconstruction_time = 0;
+        double total_time = 0;
+
+        int n_levels = level_times.size();
+
+        for (int i = 0; i < n_levels; ++i) {
+            cout << "Level " << i << " times: " << endl;
+
+            ms total_ann_time_ms = std::accumulate(ann_times[i].begin(), ann_times[i].end(), ms(0));
+            ms total_reconstruction_time_ms =
+                std::accumulate(reconstruction_times[i].begin(), reconstruction_times[i].end(), ms(0));
+
+            double avg_ann_time = total_ann_time_ms.count() / static_cast<double>(ann_times[i].size());
+            double avg_reconstruction_time =
+                total_reconstruction_time_ms.count() / static_cast<double>(reconstruction_times[i].size());
+            double level_time = level_times[i].count();
+
+            total_ann_time += avg_ann_time;
+            total_reconstruction_time += avg_reconstruction_time;
+            total_time += level_time;
+
+            cout << "\t"
+                 << "Level " << i << " average ANN time:            " << avg_ann_time << " ms" << endl;
+            cout << "\t"
+                 << "Level " << i << " average reconstruction time: " << avg_reconstruction_time << " ms" << endl;
+            cout << "\t"
+                 << "Level " << i << " total time:                  " << level_time << " ms" << endl;
+            cout << endl;
+        }
+
+        cout << "-----------------------------------" << endl;
+        cout << "Pyramid build time:                " << pyramid_build_time.count() << " ms" << endl;
+        cout << "Initialization time:               " << initialization_time.count() << " ms" << endl;
+        cout << endl;
+        cout << "Total average ANN time:            " << total_ann_time / n_levels << " ms" << endl;
+        cout << "Total average reconstruction time: " << total_reconstruction_time / n_levels << " ms" << endl;
+        cout << "Total time:                        " << total_time << " ms" << endl;
+    }
+};
+
 class PatchMatchInpainter {
    private:
     PatchMatchParams params;
+
+    TimingStats timing_stats;
 
     shift_map_t *shift_map_pyramid;
     distance_map_t *distance_map_pyramid;
