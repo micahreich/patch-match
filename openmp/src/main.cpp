@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <stdint.h>
 
 #include <iostream>
@@ -69,6 +70,12 @@ void onLambdaChange(int new_value, void* userdata) { lambda = minimum_lambda + n
 int main(int argc, char* argv[])
 {
     // Read in user image with -i command line flag, or use lena.png as default
+    // #pragma omp parallel
+    // {
+    //     printf("Hello from process: %d\n", omp_get_thread_num());
+    // }
+    // return 0;
+
     const char* image_path = "src/lena.png";
     int opt;
     while ((opt = getopt(argc, argv, "di:")) != -1) {
