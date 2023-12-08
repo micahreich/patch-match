@@ -374,19 +374,10 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
             unsigned int n_excluded = patch_area - k;
             unsigned int q = static_cast<unsigned int>(n_excluded + 0.75f * k);
 
-            // if (stage == AlgorithmStage::NORMAL) {
-            //     printf("n_excluded: %d \t q: %d\n", n_excluded, q);
-            // }
-
-            // printf("k: %d \t n_excluded: %d \t q: %d\n", k, n_excluded, q);
             assert(q < region_distances.size() && q >= 0);
 
             std::nth_element(region_distances.begin(), region_distances.begin() + q, region_distances.end());
             float sigma_p = max(1e-6, region_distances[q]);
-
-            // if (stage == AlgorithmStage::NORMAL) {
-            //     printf("sigma_p: %f\n", sigma_p);
-            // }
 
             // Find each pixel's weight and take a weighted sum of pixels in the neighborhood
             float scores_sum = 0.f;
@@ -400,18 +391,14 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
 
             for (int l = 0; l < k; l++) {
                 float pixel_weight = scores[l] / scores_sum;
-                // cout << scores[l] << " ";
                 Vec2i shift = shift_map.at<Vec2i>(pixels[l][0], pixels[l][1]);
 
                 image_pixel += scores[l] * image.at<Vec3b>(r + shift[0], c + shift[1]);
                 texture_pixel += scores[l] * texture.at<Vec2b>(r + shift[0], c + shift[1]);
             }
-            // cout << endl;
 
             image_pixel /= scores_sum;
             texture_pixel /= scores_sum;
-
-            // cout << image_pixel << endl;
 
             Vec3b final_image_pixel = Vec3b(saturate_cast<uchar>(image_pixel[0]), saturate_cast<uchar>(image_pixel[1]),
                                             saturate_cast<uchar>(image_pixel[2]));
@@ -465,12 +452,6 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
     mask_t mask = this->mask_pyramid[pyramid_idx];
     mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
-
-    // Display the mask and dilated mask
-    // Remember to normalize since they're binary masks
-    // imshow("Mask", mask * 255);
-    // imshow("Dilated Mask", dilated_mask * 255);
-    // waitKey(0);
 
     distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
 
@@ -700,16 +681,6 @@ image_t PatchMatchInpainter::inpaint()
     // Save the image located at image_pyramid[nlevels-1] to disk under png format
     imwrite("onion-peel-cpp.png", this->image_pyramid[params.n_levels - 1]);
 
-    // // Display each channel of the texture pyramid at this level in 2 images
-    // Mat texture_channels[2];
-    // split(this->texture_pyramid[params.n_levels - 1], texture_channels);
-
-    // imshow("Texture Channel 1", texture_channels[0]);
-    // waitKey(0);
-
-    // imshow("Texture Channel 2", texture_channels[1]);
-    // waitKey(0);
-
     for (int l = params.n_levels - 1; l >= 0; --l) {
         if (debug_mode) {
             printf("Level: %d .....\n", l);
@@ -733,19 +704,10 @@ image_t PatchMatchInpainter::inpaint()
             reconstructImage(l, AlgorithmStage::FINAL);
         }
         else {
-            // printf("Upsampling image at level %d .....\n", l);
-            // printf("\t OG SM shape: (%d, %d), \t OG DM shape: (%d, %d)\n",
-            //     this->shift_map_pyramid[l].rows, this->shift_map_pyramid[l].cols,
-            //     this->distance_map_pyramid[l].rows, this->distance_map_pyramid[l].cols);
+            shift_map_t upsampled_shift_map = upsampleZeroPad(this->shift_map_pyramid[l], params.half_size, true);
 
-            shift_map_t upsampled_shift_map =
-                upsampleZeroPad<Vec2i>(this->shift_map_pyramid[l], params.half_size, true);
             distance_map_t upsampled_distance_map =
-                upsampleZeroPad<float>(this->distance_map_pyramid[l], params.half_size, false);
-
-            // printf("\t Upsized SM shape: (%d, %d), \t Upsized DM shape: (%d, %d)\n",
-            // upsampled_shift_map.rows, upsampled_shift_map.cols,
-            // upsampled_distance_map.rows, upsampled_distance_map.cols);
+                upsampleZeroPad(this->distance_map_pyramid[l], params.half_size, false);
 
             this->shift_map_pyramid[l - 1] = upsampled_shift_map;
             this->distance_map_pyramid[l - 1] = upsampled_distance_map;

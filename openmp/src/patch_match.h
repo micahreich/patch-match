@@ -60,31 +60,8 @@ class PatchMatchInpainter {
         return region & image;
     }
 
-    template <typename T>
     Mat upsampleZeroPad(const Mat &src, int padding, bool mul = false)
     {
-        // int image_h = src.rows, image_w = src.cols;
-        // int new_image_h = 2 * (image_h - 2 * params.half_size) + 2 * params.half_size;
-        // int new_image_w = 2 * (image_w - 2 * params.half_size) + 2 * params.half_size;
-
-        // int multiplier = mul ? 2 : 1;
-
-        // Vec2i half_size_vec = Vec2i(params.half_size, params.half_size);
-        // Mat upsampled_src = Mat::zeros(new_image_h, new_image_w, src.type());
-
-        // for (int r = params.half_size; r < new_image_h - params.half_size; r++) {
-        //     for (int c = params.half_size; c < new_image_w - params.half_size; c++) {
-        //         Vec2i current_coord = Vec2i(r, c);
-        //         Vec2i translated_coord = current_coord - half_size_vec;
-        //         Vec2i downsampled_coord = (translated_coord / 2) + half_size_vec;
-
-        //         upsampled_src.at<T>(current_coord[0], current_coord[1]) = multiplier *
-        //         src.at<T>(downsampled_coord[0], downsampled_coord[1]);
-        //     }
-        // }
-
-        // return upsampled_src;
-
         Rect inner_region = Rect(padding, padding, src.cols - 2 * padding, src.rows - 2 * padding);
         Mat inner = src(inner_region);
 
