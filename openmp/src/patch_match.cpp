@@ -10,8 +10,6 @@
 using namespace std;
 using namespace cv;
 
-extern bool debug_mode;
-
 template <typename T>
 void printMat(const cv::Mat &mat)
 {
@@ -204,7 +202,8 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 }
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
-                                         optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+                                         optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt,
+                                         string marker = "")
 {
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
     mask_t shrinking_mask;
@@ -212,12 +211,22 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
         assert(init_shrinking_mask != nullopt);
         shrinking_mask = init_shrinking_mask->get();
     }
+    else {
+        assert(init_shrinking_mask == nullopt);
+    }
 
     // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
 
     size_t image_h = image.rows, image_w = image.cols;
+
+    if (!inBounds(centerB[0], centerB[1], image_h, image_w, params.half_size)) {
+        cout << "marker: " << marker << endl;
+        cout << "centerB: " << centerB << endl;
+        cout << "image_h: " << image_h << " image_w: " << image_w << endl;
+    }
+
     assert(inBounds(centerA[0], centerA[1], image_h, image_w,
                     params.half_size));  // Should always be in bounds (outside padding)
     assert(inBounds(centerB[0], centerB[1], image_h, image_w,
@@ -311,7 +320,7 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
             float best_neighborhood_distance = distance_map.at<float>(r, c);
 
             // Find the 75th percentile distance (of those unmasked distances, if in initialization)
-            vector<float> region_distances(patch_area, 0.f);
+            vector<double> region_distances(patch_area, 0.f);
             vector<Vec2i> pixels(patch_area, Vec2i(0, 0));
 
             unsigned int k = 0;
@@ -324,7 +333,6 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
                         case AlgorithmStage::INITIALIZATION:
                             if (!shrinking_mask.at<bool>(i, j)) {
                                 pixels[k] = Vec2i(i, j);
-                                // cout << pixels[k] << " " << k << endl;
                                 region_distances[k] = dist;
                                 k++;
                             }
@@ -361,34 +369,49 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
             // On non-final stage, we weight the pixels in the neighborhood by
             // their distance values and take a weighted average of the shifted
             // pixels to fill in color/texture
-            vector<float> scores(region_distances);
+            vector<double> scores(region_distances);
 
             unsigned int n_excluded = patch_area - k;
             unsigned int q = static_cast<unsigned int>(n_excluded + 0.75f * k);
+
+            // if (stage == AlgorithmStage::NORMAL) {
+            //     printf("n_excluded: %d \t q: %d\n", n_excluded, q);
+            // }
 
             // printf("k: %d \t n_excluded: %d \t q: %d\n", k, n_excluded, q);
             assert(q < region_distances.size() && q >= 0);
 
             std::nth_element(region_distances.begin(), region_distances.begin() + q, region_distances.end());
-            float sigma_p = std::fmax(1e-6, region_distances[q]);
+            float sigma_p = max(1e-6, region_distances[q]);
+
+            // if (stage == AlgorithmStage::NORMAL) {
+            //     printf("sigma_p: %f\n", sigma_p);
+            // }
 
             // Find each pixel's weight and take a weighted sum of pixels in the neighborhood
             float scores_sum = 0.f;
             for (int l = 0; l < k; l++) {
-                scores[l] = expf(-scores[l] / (2 * sigma_p * sigma_p));
+                scores[l] = exp(-scores[l] / (2 * sigma_p * sigma_p));
                 scores_sum += scores[l];
             }
 
-            Vec3f image_pixel = Vec3f(0, 0, 0);
-            Vec2f texture_pixel = Vec2f(0, 0);
+            Vec3d image_pixel = Vec3f(0, 0, 0);
+            Vec2d texture_pixel = Vec2f(0, 0);
 
             for (int l = 0; l < k; l++) {
                 float pixel_weight = scores[l] / scores_sum;
+                // cout << scores[l] << " ";
                 Vec2i shift = shift_map.at<Vec2i>(pixels[l][0], pixels[l][1]);
 
-                image_pixel += pixel_weight * image.at<Vec3b>(r + shift[0], c + shift[1]);
-                texture_pixel += pixel_weight * texture.at<Vec2b>(r + shift[0], c + shift[1]);
+                image_pixel += scores[l] * image.at<Vec3b>(r + shift[0], c + shift[1]);
+                texture_pixel += scores[l] * texture.at<Vec2b>(r + shift[0], c + shift[1]);
             }
+            // cout << endl;
+
+            image_pixel /= scores_sum;
+            texture_pixel /= scores_sum;
+
+            // cout << image_pixel << endl;
 
             Vec3b final_image_pixel = Vec3b(saturate_cast<uchar>(image_pixel[0]), saturate_cast<uchar>(image_pixel[1]),
                                             saturate_cast<uchar>(image_pixel[2]));
@@ -400,11 +423,6 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
             updated_texture.at<Vec2b>(r, c) = final_texture_pixel;
         }
     }
-
-    // Show the updated_image
-    namedWindow("Updated Image", WINDOW_NORMAL);
-    imshow("Updated Image", updated_image);
-    waitKey(0);
 
     this->image_pyramid[pyramid_idx] = updated_image;
     this->texture_pyramid[pyramid_idx] = updated_texture;
@@ -436,6 +454,10 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
         boundary_mask = init_boundary_mask->get();
         shrinking_mask = init_shrinking_mask->get();
     }
+    else {
+        assert(init_boundary_mask == nullopt);
+        assert(init_shrinking_mask == nullopt);
+    }
 
     // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
@@ -444,7 +466,13 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     mask_t mask = this->mask_pyramid[pyramid_idx];
     mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
 
-    distance_map_t &distance_map = this->distance_map_pyramid[pyramid_idx];
+    // Display the mask and dilated mask
+    // Remember to normalize since they're binary masks
+    // imshow("Mask", mask * 255);
+    // imshow("Dilated Mask", dilated_mask * 255);
+    // waitKey(0);
+
+    distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
 
     shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx].clone();
     shift_map_t updated_shift_map = shift_map.clone();
@@ -455,6 +483,8 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
     size_t image_h = image.rows, image_w = image.cols;
     size_t max_image_dim = max(image_h, image_w);
+
+    distance_map_t updated_distance_map = distance_map.clone();
 
     vector<int> jump_flood_radii = jumpFloodRadii(pyramid_idx, max_image_dim);
 
@@ -471,7 +501,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
                 Vec2i curr_coordinate = Vec2i(r, c);
                 Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
                 float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift, stage,
-                                                    init_shrinking_mask);
+                                                    init_shrinking_mask, "marker");
 
                 // Iterate through all 9 neighbors at the current jump flood radius
                 int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
@@ -526,7 +556,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
                 // Update the active shift map and distance map
                 active_shift_map->at<Vec2i>(r, c) = best_shift;
-                distance_map.at<float>(r, c) = best_distance;
+                updated_distance_map.at<float>(r, c) = best_distance;
             }
         }
 
@@ -536,6 +566,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
     // Place the most recently updated shift map back into the pyramid
     this->shift_map_pyramid[pyramid_idx] = *prev_shift_map;
+    this->distance_map_pyramid[pyramid_idx] = updated_distance_map;
 }
 
 Rect maskBoundingRect(mask_t &mask)
@@ -666,26 +697,55 @@ image_t PatchMatchInpainter::inpaint()
     }
     onionPeelInit();
 
+    // Save the image located at image_pyramid[nlevels-1] to disk under png format
+    imwrite("onion-peel-cpp.png", this->image_pyramid[params.n_levels - 1]);
+
+    // // Display each channel of the texture pyramid at this level in 2 images
+    // Mat texture_channels[2];
+    // split(this->texture_pyramid[params.n_levels - 1], texture_channels);
+
+    // imshow("Texture Channel 1", texture_channels[0]);
+    // waitKey(0);
+
+    // imshow("Texture Channel 2", texture_channels[1]);
+    // waitKey(0);
+
     for (int l = params.n_levels - 1; l >= 0; --l) {
         if (debug_mode) {
             printf("Level: %d .....\n", l);
         }
 
         for (int k = 0; k < params.n_iters; ++k) {
-            if (debug_mode) {
-                printf("\tk = %d: %d\n", k);
-            }
+            if (debug_mode) printf("\tk = %d\n", k);
 
             approximateNearestNeighbor(l, AlgorithmStage::NORMAL);
             reconstructImage(l, AlgorithmStage::NORMAL);
+        }
+
+        // Save the image located at image_pyramid[nlevels-1] to disk under png format
+        if (debug_mode) {
+            char filename[64];
+            snprintf(filename, sizeof(filename), "lvl-%d-cpp.png", l);
+            imwrite(filename, this->image_pyramid[l]);
         }
 
         if (l == 0) {
             reconstructImage(l, AlgorithmStage::FINAL);
         }
         else {
-            shift_map_t upsampled_shift_map = upsampleZeroPad(this->shift_map_pyramid[l], params.half_size);
-            distance_map_t upsampled_distance_map = upsampleZeroPad(this->distance_map_pyramid[l], params.half_size);
+            // printf("Upsampling image at level %d .....\n", l);
+            // printf("\t OG SM shape: (%d, %d), \t OG DM shape: (%d, %d)\n",
+            //     this->shift_map_pyramid[l].rows, this->shift_map_pyramid[l].cols,
+            //     this->distance_map_pyramid[l].rows, this->distance_map_pyramid[l].cols);
+
+            shift_map_t upsampled_shift_map =
+                upsampleZeroPad<Vec2i>(this->shift_map_pyramid[l], params.half_size, true);
+            distance_map_t upsampled_distance_map =
+                upsampleZeroPad<float>(this->distance_map_pyramid[l], params.half_size, false);
+
+            // printf("\t Upsized SM shape: (%d, %d), \t Upsized DM shape: (%d, %d)\n",
+            // upsampled_shift_map.rows, upsampled_shift_map.cols,
+            // upsampled_distance_map.rows, upsampled_distance_map.cols);
 
             this->shift_map_pyramid[l - 1] = upsampled_shift_map;
             this->distance_map_pyramid[l - 1] = upsampled_distance_map;
@@ -695,10 +755,18 @@ image_t PatchMatchInpainter::inpaint()
     }
 
     auto end_time = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    auto duration = chrono::duration_cast<chrono::duration<double>>(end_time - start_time);
 
-    printf("Inpainting took %ld ms on image of size (%d, %d)\n", duration.count(), this->image_pyramid[0].rows,
+    printf("Inpainting took %.3f seconds on image of size (%d, %d)\n", duration.count(), this->image_pyramid[0].rows,
            this->image_pyramid[0].cols);
+
+    // Crop final image back to initial size
+    image_t final_image = this->image_pyramid[0].clone();
+    Rect roi(params.half_size, params.half_size, final_image.cols - 2 * params.half_size,
+             final_image.rows - 2 * params.half_size);
+    final_image = final_image(roi);
+
+    return final_image;
 }
 
 PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)
@@ -723,4 +791,20 @@ PatchMatchInpainter::~PatchMatchInpainter()
     delete[] mask_pyramid;
     delete[] image_pyramid;
     delete[] dilated_mask_pyramid;
+}
+
+void verifyShiftMap(shift_map_t shift_map)
+{
+    for (int r = 2; r < shift_map.rows - 2; r++) {
+        for (int c = 2; c < shift_map.cols - 2; c++) {
+            Vec2i shift = shift_map.at<Vec2i>(r, c);
+
+            if (!(r + shift[0] >= 2 && r + shift[0] < shift_map.rows - 2)) {
+                printf("Row assertion failed for row: %d\n", r);
+            }
+            if (!(c + shift[1] >= 2 && c + shift[1] < shift_map.cols - 2)) {
+                printf("Column assertion failed for column: %d\n", c);
+            }
+        }
+    }
 }

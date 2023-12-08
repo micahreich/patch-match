@@ -9,6 +9,8 @@
 using namespace std;
 using namespace cv;
 
+extern bool debug_mode;
+
 enum AlgorithmStage { INITIALIZATION = 0, NORMAL = 1, FINAL = 2 };
 
 struct PatchMatchParams {
@@ -58,13 +60,38 @@ class PatchMatchInpainter {
         return region & image;
     }
 
-    Mat upsampleZeroPad(const Mat &src, int padding)
+    template <typename T>
+    Mat upsampleZeroPad(const Mat &src, int padding, bool mul = false)
     {
+        // int image_h = src.rows, image_w = src.cols;
+        // int new_image_h = 2 * (image_h - 2 * params.half_size) + 2 * params.half_size;
+        // int new_image_w = 2 * (image_w - 2 * params.half_size) + 2 * params.half_size;
+
+        // int multiplier = mul ? 2 : 1;
+
+        // Vec2i half_size_vec = Vec2i(params.half_size, params.half_size);
+        // Mat upsampled_src = Mat::zeros(new_image_h, new_image_w, src.type());
+
+        // for (int r = params.half_size; r < new_image_h - params.half_size; r++) {
+        //     for (int c = params.half_size; c < new_image_w - params.half_size; c++) {
+        //         Vec2i current_coord = Vec2i(r, c);
+        //         Vec2i translated_coord = current_coord - half_size_vec;
+        //         Vec2i downsampled_coord = (translated_coord / 2) + half_size_vec;
+
+        //         upsampled_src.at<T>(current_coord[0], current_coord[1]) = multiplier *
+        //         src.at<T>(downsampled_coord[0], downsampled_coord[1]);
+        //     }
+        // }
+
+        // return upsampled_src;
+
         Rect inner_region = Rect(padding, padding, src.cols - 2 * padding, src.rows - 2 * padding);
         Mat inner = src(inner_region);
 
         Mat upsampled_src;
-        resize(src, upsampled_src, Size(), 2, 2, INTER_NEAREST);
+        resize(inner, upsampled_src, Size(), 2, 2, INTER_NEAREST);
+
+        if (mul) upsampled_src *= 2;
 
         Mat padded;
         copyMakeBorder(upsampled_src, padded, padding, padding, padding, padding, BORDER_CONSTANT, Scalar::all(0));
@@ -83,7 +110,7 @@ class PatchMatchInpainter {
      * @return float Patch distance metric from A to B
      */
     float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
-                        optional<reference_wrapper<mask_t>> init_shrinking_mask);
+                        optional<reference_wrapper<mask_t>> init_shrinking_mask, string marker);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is
