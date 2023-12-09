@@ -15,12 +15,11 @@ extern bool debug_mode, write_levels;
 
 enum AlgorithmStage { INITIALIZATION = 0, NORMAL = 1, FINAL = 2 };
 
-typedef chrono::milliseconds ms;
-
 struct PatchMatchParams {
     unsigned int n_levels;
     unsigned int patch_size;
     unsigned int half_size;
+    unsigned int patch_area;
     unsigned int n_iters;
     unsigned int n_iters_jfa;
 
@@ -30,6 +29,7 @@ struct PatchMatchParams {
     PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_jfa(1), lambda(5.f)
     {
         half_size = patch_size / 2;
+        patch_area = patch_size * patch_size;
     }
 
     PatchMatchParams(unsigned int n_levels, unsigned int patch_size, unsigned int n_iters, unsigned int n_iters_jfa,
@@ -42,6 +42,7 @@ struct PatchMatchParams {
         }
 
         half_size = patch_size / 2;
+        patch_area = patch_size * patch_size;
     }
 };
 

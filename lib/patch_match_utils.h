@@ -10,6 +10,9 @@
 #include <ctime>
 #include <cstdlib>
 
+static std::mt19937 rng(std::random_device{}());
+
+
 typedef cv::Mat shift_map_t;
 typedef cv::Mat distance_map_t;
 typedef cv::Mat texture_t;
@@ -23,15 +26,14 @@ static bool inBounds(int y, int x, int height, int width, int half_size=0) {
 
 // Function to generate a random integer in [lb, ub) range
 static int generateRandomInt(int lb, int ub) {
-    return lb + rand() % (ub - lb);
+    std::uniform_int_distribution<int> dist(lb, ub - 1);
+    return dist(rng);
 }
 
 // Function to generate a random float in [lb, ub) range
 static float generateRandomFloat(float lb, float ub) {
-    float random = ((float) rand()) / (float) RAND_MAX;
-    float diff = ub - lb;
-    float r = random * diff;
-    return lb + r;
+    std::uniform_real_distribution<float> dist(lb, ub);
+    return dist(rng);
 }
 
 

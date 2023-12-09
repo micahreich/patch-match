@@ -15,7 +15,7 @@ using namespace cv;
 
 void printProgressBar(int step, int total_steps)
 {
-    const int bar_width = 70;
+    const int bar_width = 60;
     float progress = static_cast<float>(step) / total_steps;
 
     cout << "[";
@@ -89,8 +89,8 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     // Stack abs_gradient_x and abs_gradient_y along the 3rd dimension to form
     // the texture matrix
     Mat texture;
-    vector<Mat> channels = {blurred_abs_gradient_x, blurred_abs_gradient_y};
-    merge(channels, texture);
+    Mat channels[2] = {blurred_abs_gradient_x, blurred_abs_gradient_y};
+    merge(channels, 2, texture);
 
     image_pyramid[0] = image;
     mask_pyramid[0] = mask;
@@ -245,7 +245,6 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
                                          string marker = "")
 {
     // TODO @dkrajews: Turns out patchDistance is responsible for a shit load of the runtime ...
-    auto start = CycleTimer::currentSeconds();
 
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
     mask_t shrinking_mask;
@@ -263,46 +262,44 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
     size_t image_h = image.rows, image_w = image.cols;
 
-    if (!inBounds(centerB[0], centerB[1], image_h, image_w, params.half_size)) {
-        cout << "marker: " << marker << endl;
-        cout << "centerB: " << centerB << endl;
-        cout << "image_h: " << image_h << " image_w: " << image_w << endl;
-    }
-
-    assert(inBounds(centerA[0], centerA[1], image_h, image_w,
-                    params.half_size));  // Should always be in bounds (outside padding)
-    assert(inBounds(centerB[0], centerB[1], image_h, image_w,
-                    params.half_size));  // Should always be in bounds (outside padding)
-
     Rect regionA = patchRegion(centerA, image_h, image_w, false);
     Rect regionB = patchRegion(centerB, image_h, image_w, false);
     // TODO @mreich: look at region "intersection"
 
-    float unoccluded_patch_area = params.patch_size * params.patch_size;
-
-    Mat image_regionA = image(regionA);
-    Mat image_regionB = image(regionB);
-
-    Mat texture_regionA = texture(regionA);
-    Mat texture_regionB = texture(regionB);
-
-    Mat maskA = (stage == AlgorithmStage::INITIALIZATION) ? shrinking_mask(regionA) : this->patch_size_zeros;
+    float unoccluded_patch_area = params.patch_area;
 
     float ssd_image = 0.f;
     float ssd_texture = 0.f;
 
+    // Direct access to image, texture, and mask
     for (int i = 0; i < regionA.height; ++i) {
+        // Pointers to the beginning of the i-th row in the respective regions
+        auto *row_ptr_imageA = image.ptr<Vec3i>(centerA[0] - params.half_size + i) + centerA[1] - params.half_size;
+        auto *row_ptr_imageB = image.ptr<Vec3i>(centerB[0] - params.half_size + i) + centerB[1] - params.half_size;
+
+        auto *row_ptr_textureA = texture.ptr<Vec2i>(centerA[0] - params.half_size + i) + centerA[1] - params.half_size;
+        auto *row_ptr_textureB = texture.ptr<Vec2i>(centerB[0] - params.half_size + i) + centerB[1] - params.half_size;
+
+        const uchar *row_ptr_maskA = nullptr;
+        if (stage == AlgorithmStage::INITIALIZATION) {
+            row_ptr_maskA =
+                shrinking_mask.ptr<uchar>(centerA[0] - params.half_size + i) + centerA[1] - params.half_size;
+        }
+        else {
+            row_ptr_maskA = this->patch_size_zeros.ptr<uchar>(0);
+        }
+
         for (int j = 0; j < regionA.width; ++j) {
-            if (maskA.at<uchar>(i, j) > 0) {
+            if (row_ptr_maskA[j] > 0) {
                 --unoccluded_patch_area;
                 continue;
-            };
+            }
 
-            Vec3i &pixelA = image_regionA.at<Vec3i>(i, j);
-            Vec3i &pixelB = image_regionB.at<Vec3i>(i, j);
+            Vec3i &pixelA = row_ptr_imageA[j];
+            Vec3i &pixelB = row_ptr_imageB[j];
 
-            Vec2i &textureA = texture_regionA.at<Vec2i>(i, j);
-            Vec2i &textureB = texture_regionB.at<Vec2i>(i, j);
+            Vec2i &textureA = row_ptr_textureA[j];
+            Vec2i &textureB = row_ptr_textureB[j];
 
             Vec3i pixel_diff = pixelA - pixelB;
             Vec2i texture_diff = textureA - textureB;
@@ -315,9 +312,6 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     }
 
     float distance = (1.f / unoccluded_patch_area) * (ssd_image + params.lambda * ssd_texture);
-
-    auto end = CycleTimer::currentSeconds();
-    time = end - start;
 
     return distance;
 }
@@ -814,7 +808,7 @@ image_t PatchMatchInpainter::inpaint()
 PatchMatchInpainter::PatchMatchInpainter(image_t image, mask_t mask, PatchMatchParams params = PatchMatchParams())
     : params(params)
 {
-    srand(time(0));
+    //    srand(time(0));
 
     this->timing_stats = TimingStats();
     this->patch_dilation_element =
