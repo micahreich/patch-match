@@ -13,7 +13,7 @@
 using namespace std;
 using namespace cv;
 
-void print_progress_bar(int step, int total_steps)
+void printProgressBar(int step, int total_steps)
 {
     const int bar_width = 70;
     float progress = static_cast<float>(step) / total_steps;
@@ -32,6 +32,27 @@ void print_progress_bar(int step, int total_steps)
     cout.flush();
 }
 
+Rect maskBoundingRect(mask_t &mask)
+{
+    int min_row = mask.rows - 1;
+    int max_row = 0;
+    int min_col = mask.cols - 1;
+    int max_col = 0;
+
+    for (int r = 0; r < mask.rows; r++) {
+        for (int c = 0; c < mask.cols; c++) {
+            if (mask.at<bool>(r, c)) {
+                min_row = min(min_row, r);
+                max_row = max(max_row, r);
+                min_col = min(min_col, c);
+                max_col = max(max_col, c);
+            }
+        }
+    }
+
+    return Rect(min_col, min_row, max_col - min_col + 1, max_row - min_row + 1);
+}
+
 void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 {
     // Allocate space for all levels of the pyramid
@@ -41,6 +62,7 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
     mask_pyramid = new mask_t[params.n_levels];
     image_pyramid = new image_t[params.n_levels];
     dilated_mask_pyramid = new mask_t[params.n_levels];
+    hole_region_pyramid = new Rect[params.n_levels];
 
     // Convert image to grayscale
     Mat gray_image;
@@ -184,6 +206,9 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
         copyMakeBorder(dilated_mask_pyramid[i], padded_dilated_mask, params.half_size, params.half_size,
                        params.half_size, params.half_size, BORDER_CONSTANT, 0);
         dilated_mask_pyramid[i] = padded_dilated_mask;
+
+        Rect bounding_rect = maskBoundingRect(padded_dilated_mask);
+        hole_region_pyramid[i] = bounding_rect;
     }
 
     // Initialize the coarsest level of the shift map pyramid
@@ -313,6 +338,7 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
     // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
+    Rect bounding_box = this->hole_region_pyramid[pyramid_idx];
 
     image_t updated_image = image.clone();
     texture_t updated_texture = texture.clone();
@@ -323,8 +349,8 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
 
     size_t image_h = image.rows, image_w = image.cols;
 
-    for (int r = params.half_size; r < image_h - params.half_size; r++) {
-        for (int c = params.half_size; c < image_w - params.half_size; c++) {
+    for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
+        for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
             if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
                 continue;
             else if (stage != AlgorithmStage::INITIALIZATION && !mask.at<bool>(r, c))
@@ -472,6 +498,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     // Get the current level's image and texture pyramids
     image_t image = this->image_pyramid[pyramid_idx];
     texture_t texture = this->texture_pyramid[pyramid_idx];
+    Rect bounding_box = this->hole_region_pyramid[pyramid_idx];
 
     mask_t mask = this->mask_pyramid[pyramid_idx];
     mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
@@ -495,12 +522,15 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     double total_patch_distance_time = 0.f;
     double pdt;
 
-    for (int k = 0; k < jump_flood_radii.size(); k++) {
-        int jump_flood_radius = jump_flood_radii[k];
+    for (int k = 0; k < params.n_iters_jfa * jump_flood_radii.size(); k++) {
+        int idx = k % jump_flood_radii.size();
+        int jump_flood_radius = jump_flood_radii[idx];
+
+        int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
 
         // #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
-        for (int r = params.half_size; r < image_h - params.half_size; r++) {
-            for (int c = params.half_size; c < image_w - params.half_size; c++) {
+        for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
+            for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
                 if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
                     continue;
                 else if (stage == AlgorithmStage::NORMAL && !dilated_mask.at<bool>(r, c))
@@ -514,8 +544,6 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
                 total_patch_distance_time += pdt;
 
                 // Iterate through all 9 neighbors at the current jump flood radius
-                int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
-
                 for (auto dr : radii_offsets) {
                     for (auto dc : radii_offsets) {
                         Vec2i partner_coordinate = Vec2i(r + dr, c + dc);
@@ -582,27 +610,6 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     // Place the most recently updated shift map back into the pyramid
     this->shift_map_pyramid[pyramid_idx] = *prev_shift_map;
     this->distance_map_pyramid[pyramid_idx] = updated_distance_map;
-}
-
-Rect maskBoundingRect(mask_t &mask)
-{
-    int minRow = mask.rows - 1;
-    int maxRow = 0;
-    int minCol = mask.cols - 1;
-    int maxCol = 0;
-
-    for (int r = 0; r < mask.rows; r++) {
-        for (int c = 0; c < mask.cols; c++) {
-            if (mask.at<bool>(r, c)) {
-                minRow = min(minRow, r);
-                maxRow = max(maxRow, r);
-                minCol = min(minCol, c);
-                maxCol = max(maxCol, c);
-            }
-        }
-    }
-
-    return Rect(minCol, minRow, maxCol - minCol, maxRow - minRow);
 }
 
 bool nonEmptyMask(mask_t &mask)
@@ -717,7 +724,7 @@ image_t PatchMatchInpainter::inpaint()
 
     int total_steps = params.n_levels + 1;
 
-    print_progress_bar(0, total_steps);
+    printProgressBar(0, total_steps);
 
     onionPeelInit();
 
@@ -726,7 +733,7 @@ image_t PatchMatchInpainter::inpaint()
     this->timing_stats.initialization_time = onion_peel_init_duration;
 
     for (int l = params.n_levels - 1; l >= 0; --l) {
-        print_progress_bar(params.n_levels - l, total_steps);
+        printProgressBar(params.n_levels - l, total_steps);
 
         auto level_start = CycleTimer::currentSeconds();
 
@@ -785,7 +792,7 @@ image_t PatchMatchInpainter::inpaint()
         this->timing_stats.level_times.push_back(level_duration);
     }
 
-    print_progress_bar(total_steps, total_steps);
+    printProgressBar(total_steps, total_steps);
     cout << endl << endl;
 
     // Crop final image back to initial size

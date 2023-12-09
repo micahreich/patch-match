@@ -22,19 +22,19 @@ struct PatchMatchParams {
     unsigned int patch_size;
     unsigned int half_size;
     unsigned int n_iters;
-    unsigned int n_iters_init;
+    unsigned int n_iters_jfa;
 
     float lambda;
 
     // Default parameters
-    PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_init(1), lambda(5.f)
+    PatchMatchParams() : n_levels(4), patch_size(5), n_iters(10), n_iters_jfa(1), lambda(5.f)
     {
         half_size = patch_size / 2;
     }
 
-    PatchMatchParams(unsigned int n_levels, unsigned int patch_size, unsigned int n_iters, unsigned int n_iters_init,
+    PatchMatchParams(unsigned int n_levels, unsigned int patch_size, unsigned int n_iters, unsigned int n_iters_jfa,
                      float lambda)
-        : n_levels(n_levels), patch_size(patch_size), n_iters(n_iters), n_iters_init(n_iters_init), lambda(lambda)
+        : n_levels(n_levels), patch_size(patch_size), n_iters(n_iters), n_iters_jfa(n_iters_jfa), lambda(lambda)
     {
         if (patch_size < 0 || patch_size % 2 == 0) {
             fprintf(stderr, "Patch size must be odd positive integer (provided %d)\n", patch_size);
@@ -104,6 +104,7 @@ class PatchMatchInpainter {
     mask_t *mask_pyramid;
     mask_t *dilated_mask_pyramid;
     image_t *image_pyramid;
+    Rect *hole_region_pyramid;
 
     Mat patch_dilation_element;
     Mat patch_size_zeros;
