@@ -72,6 +72,8 @@ void onLambdaChange(int new_value, void* userdata) { lambda = minimum_lambda + n
 int main(int argc, char* argv[])
 {
     const char* image_path = "src/lena.png";
+
+    // Parse command line arguments
     int opt;
     while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
         switch (opt) {
@@ -200,15 +202,13 @@ int main(int argc, char* argv[])
     cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
     cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
 
-    double minVal, maxVal;
-    cv::minMaxLoc(binary_mask, &minVal, &maxVal);
-
     // Normalize binary_mask to 0-255
     cv::Mat normalized_mask;
     binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
 
     PatchMatchParams params = PatchMatchParams();
-    PatchMatchInpainter inpainter(params, test_image, binary_mask);
+
+    PatchMatchInpainter inpainter(test_image, binary_mask, params);
     inpainter.inpaint();
 
     return EXIT_SUCCESS;

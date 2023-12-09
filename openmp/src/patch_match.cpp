@@ -804,7 +804,8 @@ image_t PatchMatchInpainter::inpaint()
     return final_image;
 }
 
-PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)
+PatchMatchInpainter::PatchMatchInpainter(image_t image, mask_t mask, PatchMatchParams params = PatchMatchParams())
+    : params(params)
 {
     srand(time(0));
 
