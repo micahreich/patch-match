@@ -1,24 +1,30 @@
 OUTPUTDIR := bin/
 
 ifeq ($(SYSTYPE),mac)
+	CXX := $(shell which clang++)
+	ifeq ($(CXX),)
+		CXX := /opt/homebrew/opt/llvm/bin/clang++ # fallback path
+	endif
+
 	# Flags for the C Preprocessor
 	CPPFLAGS := -I/opt/homebrew/opt/jpeg/include -I/opt/homebrew/opt/libpng/include -I../lib -I/opt/X11/include
 
 	# Flags for the Linker
-	LDFLAGS := -L/opt/homebrew/opt/jpeg/lib -L/opt/homebrew/opt/libpng/lib -L/opt/X11/lib 
+	LDFLAGS := -L/opt/homebrew/opt/jpeg/lib -L/opt/homebrew/opt/libpng/lib -L/opt/X11/lib -fopenmp
 
 	OPENCV_DIR := $(shell brew --prefix opencv)
 	CPPFLAGS += -I$(OPENCV_DIR)/include/opencv4
 	LDFLAGS += -L$(OPENCV_DIR)/lib
 
 	# Compiler flags
-	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
+	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread -fopenmp
 
 	# Library flags
-	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
+	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lomp
+
 else ifeq ($(SYSTYPE),ghc)
 	# Flags for the C Preprocessor
-	CPPFLAGS := -I/usr/include/libpng -I../lib -I/usr/include/X11
+	CPPFLAGS := -I/usr/include/libpng -I../lib -I/usr/include/X11 
 
 	LDFLAGS := -L/usr/lib/x86_64-linux-gnu
 
@@ -32,7 +38,7 @@ else ifeq ($(SYSTYPE),ghc)
 	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread -march=native
 
 	# Library flags
-	LIBS := -lX11 -lpng -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio
+	LIBS := -lX11 -lpng -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio 
 
 	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/depot/fsl/fslpython/envs/fslpython/lib
 endif
@@ -44,7 +50,7 @@ endif
 ifeq (debug,$(CONFIGURATION))
 	CFLAGS += -g
 else
-	CFLAGS += -O3
+	CFLAGS += -O2 -fopenmp
 endif
 
 SOURCES := src/*.cpp

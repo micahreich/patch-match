@@ -1,5 +1,7 @@
 #include "patch_match.h"
 
+#include <omp.h>
+
 #include <cassert>
 #include <chrono>
 #include <opencv2/opencv.hpp>
@@ -23,6 +25,8 @@ void printMat(const cv::Mat &mat)
         std::cout << std::endl;
     }
 }
+
+Mat zeros = Mat::zeros(5, 5, CV_8UC1);
 
 void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 {
@@ -248,74 +252,41 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
     float unoccluded_patch_area = params.patch_size * params.patch_size;
 
-    /* Vec3i image_ssds = Vec3i(0, 0, 0);
-    Vec2i texture_ssds = Vec2i(0, 0);
-
-    int hs = params.half_size;
-
-    for (int di = -hs; di <= hs; di++) {
-        for (int dj = -hs; dj <= hs; dj++) {
-            if (stage == AlgorithmStage::INITIALIZATION && shrinking_mask.at<bool>(centerA[0] + di, centerA[1] + dj)) {
-                --unoccluded_patch_area;
-                continue;
-            }
-
-            Vec3i image_difference = image.at<Vec3i>(centerA[0] + di, centerA[1] + dj) -
-                                     image.at<Vec3i>(centerB[0] + di, centerB[1] + dj);
-            image_difference = image_difference.mul(image_difference);
-            image_ssds += image_difference;
-
-            Vec2i texture_difference = texture.at<Vec2i>(centerA[0] + di, centerA[1] + dj) -
-                                       texture.at<Vec2i>(centerB[0] + di, centerB[1] + dj);
-            texture_difference = texture_difference.mul(texture_difference);
-            texture_ssds += texture_difference;
-        }
-    }
-
-
-    float total_ssd_image_sum = image_ssds[0] + image_ssds[1] + image_ssds[2];
-    float total_ssd_texture_sum = texture_ssds[0] + texture_ssds[1];
-
-    float distance = (1.f / unoccluded_patch_area) * (total_ssd_image_sum + params.lambda * total_ssd_texture_sum); */
-
     Mat image_regionA = image(regionA);
     Mat image_regionB = image(regionB);
 
     Mat texture_regionA = texture(regionA);
     Mat texture_regionB = texture(regionB);
 
-    // float total_ssd_image_sum, total_ssd_texture_sum = 0.f;
+    Mat maskA = (stage == AlgorithmStage::INITIALIZATION) ? shrinking_mask(regionA) : this->patch_size_zeros;
 
-    // TODO @dkrajews: More insight: its ~8x faster without doing any of the computation meaning the bulk of the time is
-    // not memory access/copying into image_regionX ... perhaps we look at ISPC for this if opencv isnt using it already
-    // I print out the openCV hardware info with getBuildInformation()... doesn't look like there's any intrinsics used.
+    float ssd_image = 0.f;
+    float ssd_texture = 0.f;
 
-    Mat image_region_difference = image_regionA - image_regionB;  // Sum of squared differences
-    image_region_difference = image_region_difference.mul(image_region_difference);
+    for (int i = 0; i < regionA.height; ++i) {
+        for (int j = 0; j < regionA.width; ++j) {
+            if (maskA.at<uchar>(i, j) > 0) {
+                --unoccluded_patch_area;
+                continue;
+            };
 
-    Mat texture_region_difference = texture_regionA - texture_regionB;
-    texture_region_difference = texture_region_difference.mul(texture_region_difference);
+            Vec3i &pixelA = image_regionA.at<Vec3i>(i, j);
+            Vec3i &pixelB = image_regionB.at<Vec3i>(i, j);
 
-    // If masked, calculate how many pixels are unmasked in the region and mask the regions
-    if (stage == AlgorithmStage::INITIALIZATION) {
-        Mat mask_region = shrinking_mask(regionA);
+            Vec2i &textureA = texture_regionA.at<Vec2i>(i, j);
+            Vec2i &textureB = texture_regionB.at<Vec2i>(i, j);
 
-        Scalar n_occluded = sum(mask_region);
-        unoccluded_patch_area -= n_occluded[0];
+            Vec3i pixel_diff = pixelA - pixelB;
+            Vec2i texture_diff = textureA - textureB;
 
-        assert(unoccluded_patch_area > 0);
+            ssd_image +=
+                (pixel_diff[0] * pixel_diff[0]) + (pixel_diff[1] * pixel_diff[1]) + (pixel_diff[2] * pixel_diff[2]);
 
-        image_region_difference.setTo(Scalar::all(0), mask_region);
-        texture_region_difference.setTo(Scalar::all(0), mask_region);
+            ssd_texture += (texture_diff[0] * texture_diff[0]) + (texture_diff[1] * texture_diff[1]);
+        }
     }
 
-    Scalar ssd_image = sum(image_region_difference);
-    float total_ssd_image_sum = ssd_image[0] + ssd_image[1] + ssd_image[2];
-
-    Scalar ssd_texture = sum(texture_region_difference);
-    float total_ssd_texture_sum = ssd_texture[0] + ssd_texture[1];
-
-    float distance = (1.f / unoccluded_patch_area) * (total_ssd_image_sum + params.lambda * total_ssd_texture_sum);
+    float distance = (1.f / unoccluded_patch_area) * (ssd_image + params.lambda * ssd_texture);
 
     auto end = CycleTimer::currentSeconds();
     time = end - start;
@@ -827,9 +798,10 @@ PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image,
     cout << cv::getBuildInformation() << endl;
 
     this->timing_stats = TimingStats();
-
     this->patch_dilation_element =
         getStructuringElement(MORPH_RECT, Size(this->params.patch_size, this->params.patch_size));
+    this->patch_size_ones = Mat::ones(this->params.patch_size, this->params.patch_size, CV_8UC1);
+    this->patch_size_zeros = Mat::zeros(this->params.patch_size, this->params.patch_size, CV_8UC1);
 
     // Initialize all image, texture, etc. pyramids given the initial image and mask
 

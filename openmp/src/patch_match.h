@@ -101,6 +101,8 @@ class PatchMatchInpainter {
     image_t *image_pyramid;
 
     Mat patch_dilation_element;
+    Mat patch_size_zeros;
+    Mat patch_size_ones;
 
     Rect patchRegion(Vec2i center, unsigned int image_h, unsigned int image_w, bool cutoff_padding = false)
     {
