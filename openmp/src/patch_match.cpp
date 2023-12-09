@@ -13,20 +13,24 @@
 using namespace std;
 using namespace cv;
 
-template <typename T>
-void printMat(const cv::Mat &mat)
+void print_progress_bar(int step, int total_steps)
 {
-    for (int i = 0; i < mat.rows; ++i) {
-        for (int j = 0; j < mat.cols; ++j) {
-            bool v = mat.at<T>(i, j);
+    const int bar_width = 70;
+    float progress = static_cast<float>(step) / total_steps;
 
-            printf("%d ", v);
-        }
-        std::cout << std::endl;
+    cout << "[";
+    int pos = bar_width * progress;
+    for (int i = 0; i < bar_width; ++i) {
+        if (i < pos)
+            cout << "=";
+        else if (i == pos)
+            cout << ">";
+        else
+            cout << " ";
     }
+    cout << "] " << int(progress * 100.0) << " %\r";
+    cout.flush();
 }
-
-Mat zeros = Mat::zeros(5, 5, CV_8UC1);
 
 void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 {
@@ -216,7 +220,6 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
                                          string marker = "")
 {
     // TODO @dkrajews: Turns out patchDistance is responsible for a shit load of the runtime ...
-
     auto start = CycleTimer::currentSeconds();
 
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
@@ -324,11 +327,10 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
         for (int c = params.half_size; c < image_w - params.half_size; c++) {
             if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
                 continue;
-            else if (stage == AlgorithmStage::NORMAL && !mask.at<bool>(r, c))
+            else if (stage != AlgorithmStage::INITIALIZATION && !mask.at<bool>(r, c))
                 continue;
 
             Rect region = patchRegion(Vec2i(r, c), image_h, image_w, true);
-
             unsigned int patch_area = region.area();
 
             Vec2i best_neighborhood_pixel = Vec2i(r, c);
@@ -380,7 +382,6 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
 
                 continue;
             }
-
             // On non-final stage, we weight the pixels in the neighborhood by
             // their distance values and take a weighted average of the shifted
             // pixels to fill in color/texture
@@ -497,6 +498,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     for (int k = 0; k < jump_flood_radii.size(); k++) {
         int jump_flood_radius = jump_flood_radii[k];
 
+        // #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
         for (int r = params.half_size; r < image_h - params.half_size; r++) {
             for (int c = params.half_size; c < image_w - params.half_size; c++) {
                 if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
@@ -713,21 +715,23 @@ image_t PatchMatchInpainter::inpaint()
     }
     auto onion_peel_init_start = CycleTimer::currentSeconds();
 
+    int total_steps = params.n_levels + 1;
+
+    print_progress_bar(0, total_steps);
+
     onionPeelInit();
 
     auto onion_peel_init_end = CycleTimer::currentSeconds();
     auto onion_peel_init_duration = onion_peel_init_end - onion_peel_init_start;
     this->timing_stats.initialization_time = onion_peel_init_duration;
 
-    imwrite("onion-peel-cpp.png", this->image_pyramid[params.n_levels - 1]);
-
     for (int l = params.n_levels - 1; l >= 0; --l) {
+        print_progress_bar(params.n_levels - l, total_steps);
+
         auto level_start = CycleTimer::currentSeconds();
 
         this->timing_stats.ann_times.push_back(vector<double>());
         this->timing_stats.reconstruction_times.push_back(vector<double>());
-
-        cout << "Level: " << l << " ....." << endl;
 
         for (int k = 0; k < params.n_iters; ++k) {
             if (debug_mode) printf("\tk = %d\n", k);
@@ -737,7 +741,7 @@ image_t PatchMatchInpainter::inpaint()
             // Perform ANN search
             double patch_distance_time;
             approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-            printf("patch_distance_time: %f ms\n", 1000.f * patch_distance_time);
+            // printf("patch_distance_time: %f ms\n", 1000.f * patch_distance_time);
 
             auto ann_end = CycleTimer::currentSeconds();
             auto ann_duration = ann_end - ann_start;
@@ -751,12 +755,6 @@ image_t PatchMatchInpainter::inpaint()
             auto reconstruction_end = CycleTimer::currentSeconds();
             auto reconstruction_duration = reconstruction_end - reconstruction_start;
             this->timing_stats.reconstruction_times[(params.n_levels - 1) - l].push_back(reconstruction_duration);
-        }
-
-        if (debug_mode) {
-            char filename[64];
-            snprintf(filename, sizeof(filename), "lvl-%d-cpp.png", l);
-            imwrite(filename, this->image_pyramid[l]);
         }
 
         // TODO @dkrajews: add timing code and something in TimingStats for timing upsampling of distance map and shift
@@ -776,16 +774,30 @@ image_t PatchMatchInpainter::inpaint()
             reconstructImage(l - 1, AlgorithmStage::NORMAL);
         }
 
+        if (write_levels) {
+            char filename[64];
+            snprintf(filename, sizeof(filename), "inpaint-lvl-%d.png", l);
+            imwrite(filename, this->image_pyramid[l]);
+        }
+
         auto level_end = CycleTimer::currentSeconds();
         auto level_duration = level_end - level_start;
         this->timing_stats.level_times.push_back(level_duration);
     }
+
+    print_progress_bar(total_steps, total_steps);
+    cout << endl << endl;
 
     // Crop final image back to initial size
     image_t final_image = this->image_pyramid[0].clone();
     Rect crop(params.half_size, params.half_size, final_image.cols - 2 * params.half_size,
               final_image.rows - 2 * params.half_size);
     final_image = final_image(crop);
+
+    if (write_levels) {
+        char filename[64];
+        imwrite("inpaint-final.png", final_image);
+    }
 
     this->timing_stats.prettyPrint();
 
@@ -795,7 +807,6 @@ image_t PatchMatchInpainter::inpaint()
 PatchMatchInpainter::PatchMatchInpainter(PatchMatchParams params, image_t image, mask_t mask) : params(params)
 {
     srand(time(0));
-    cout << cv::getBuildInformation() << endl;
 
     this->timing_stats = TimingStats();
     this->patch_dilation_element =

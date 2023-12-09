@@ -27,7 +27,9 @@ const unsigned char COLOR_BLACK[] = {0, 0, 0};
 using namespace std;
 
 const string WINDOW_NAME = "PhotoShop - CS418";
+
 bool debug_mode = false;
+bool write_levels = false;
 
 enum FillMode { ERASE = 0, FILL = 1 };
 
@@ -71,7 +73,7 @@ int main(int argc, char* argv[])
 {
     const char* image_path = "src/lena.png";
     int opt;
-    while ((opt = getopt(argc, argv, "di:")) != -1) {
+    while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
         switch (opt) {
             case 'd':
                 debug_mode = true;
@@ -79,8 +81,17 @@ int main(int argc, char* argv[])
             case 'i':
                 image_path = optarg;
                 break;
+            case 'w':
+                write_levels = true;
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-i image_path] [-d]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [options]\n", argv[0]);
+                fprintf(stderr, "Options:\n");
+                fprintf(stderr, "  -i <image path>  Load in image stored at <image path>\n");
+                fprintf(stderr, "  -d               Enable debug mode\n");
+                fprintf(stderr, "  -w               Save intermediate level results to disk\n");
+                fprintf(stderr, "  -h               Display help message\n");
+
                 exit(EXIT_FAILURE);
         }
     }

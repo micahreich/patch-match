@@ -11,7 +11,7 @@
 using namespace std;
 using namespace cv;
 
-extern bool debug_mode;
+extern bool debug_mode, write_levels;
 
 enum AlgorithmStage { INITIALIZATION = 0, NORMAL = 1, FINAL = 2 };
 
@@ -72,9 +72,9 @@ struct TimingStats {
             total_reconstruction_time += avg_reconstruction_time;
             total_time += level_time;
 
-            printf("\tLevel %d average ANN time:            %.2f ms\n", i, 1000.f * avg_ann_time);
-            printf("\tLevel %d average reconstruction time: %.2f ms\n", i, 1000.f * avg_reconstruction_time);
-            printf("\tLevel %d total time:                  %.2f ms\n", i, 1000.f * level_time);
+            printf("  Level %d average ANN time:            %.2f ms\n", i, 1000.f * avg_ann_time);
+            printf("  Level %d average reconstruction time: %.2f ms\n", i, 1000.f * avg_reconstruction_time);
+            printf("  Level %d total time:                  %.2f ms\n", i, 1000.f * level_time);
         }
 
         printf("-----------------------------------\n");
