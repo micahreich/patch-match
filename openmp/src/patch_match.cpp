@@ -271,7 +271,8 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     float ssd_image = 0.f;
     float ssd_texture = 0.f;
 
-    // Direct access to image, texture, and mask
+    // This loop over the image region is heavily optimized, hence all the pointers and direct memory accesses
+    // rather than making a copy of the image region and looping over that
     for (int i = 0; i < regionA.height; ++i) {
         // Pointers to the beginning of the i-th row in the respective regions
         auto *row_ptr_imageA = image.ptr<Vec3i>(centerA[0] - params.half_size + i) + centerA[1] - params.half_size;
