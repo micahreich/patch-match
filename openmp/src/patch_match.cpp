@@ -523,7 +523,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
         int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
 
-        // #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
+//        #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
         for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
             for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
                 if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
@@ -605,6 +605,96 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     // Place the most recently updated shift map back into the pyramid
     this->shift_map_pyramid[pyramid_idx] = *prev_shift_map;
     this->distance_map_pyramid[pyramid_idx] = updated_distance_map;
+}
+
+void PatchMatchInpainter::annHelper(int r, int c, image_t& image, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
+               shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
+               double &patch_distance_time,
+               optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
+               optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt) {
+
+  size_t image_h = image.rows, image_w = image.cols;
+  size_t max_image_dim = max(image_h, image_w);
+  double total_patch_distance_time = 0.f;
+  double pdt;
+
+  for (int k = 0; k < params.n_iters_jfa * jump_flood_radii.size(); k++) {
+    int idx = k % jump_flood_radii.size();
+    int jump_flood_radius = jump_flood_radii[idx];
+
+    int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
+
+//        #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
+        if (!dilated_mask.at<bool>(r, c))
+          continue;
+
+        Vec2i curr_coordinate = Vec2i(r, c);
+        Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
+
+        float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift, AlgorithmStage::NORMAL,
+                                            pdt, init_shrinking_mask, "marker");
+        total_patch_distance_time += pdt;
+
+        // Iterate through all 9 neighbors at the current jump flood radius
+        for (auto dr : radii_offsets) {
+          for (auto dc : radii_offsets) {
+            Vec2i partner_coordinate = Vec2i(r + dr, c + dc);
+            if (!inBounds(partner_coordinate[0], partner_coordinate[1], image_h, image_w, params.half_size))
+              continue;
+
+            Vec2i candidate_shift = prev_shift_map->at<Vec2i>(partner_coordinate[0], partner_coordinate[1]);
+            Vec2i candidate_coordinate = curr_coordinate + candidate_shift;
+            if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w,
+                          params.half_size))
+              continue;
+
+            float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
+                                                     AlgorithmStage::NORMAL, pdt, init_shrinking_mask);
+            total_patch_distance_time += pdt;
+
+            if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
+                candidate_distance < best_distance) {
+              best_distance = candidate_distance;
+              best_shift = candidate_shift;
+            }
+          }
+        }
+
+        // Random search step, exponential backoff from original offset
+        float alpha = 1.f;
+        Vec2i original_shift = best_shift;
+
+        while (alpha * max_image_dim >= 1) {
+          int random_row = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
+          int random_col = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
+
+          Vec2i random_shift_offset = Vec2i(random_row, random_col);
+          Vec2i candidate_coordinate = curr_coordinate + original_shift + random_shift_offset;
+
+          if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size))
+            continue;
+
+          float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate, AlgorithmStage::NORMAL,
+                                                   pdt, init_shrinking_mask);
+          total_patch_distance_time += pdt;
+
+          if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
+              candidate_distance < best_distance) {
+            best_distance = candidate_distance;
+            best_shift = original_shift + random_shift_offset;
+          }
+
+          alpha *= 0.5f;
+        }
+
+        // Update the active shift map and distance map
+        active_shift_map->at<Vec2i>(r, c) = best_shift;
+        updated_distance_map.at<float>(r, c) = best_distance;
+      }
+
+    // Swap active and previous shift map pointers between jump flood iterations
+    std::swap(active_shift_map, prev_shift_map);
+
 }
 
 bool nonEmptyMask(mask_t &mask)
@@ -712,6 +802,9 @@ void PatchMatchInpainter::onionPeelInit()
 
 image_t PatchMatchInpainter::inpaint()
 {
+//  #pragma omp parallel {
+//  #prahma
+//  }
     if (debug_mode) {
         printf("Beginning onion peel initialization .....\n");
     }
@@ -735,7 +828,17 @@ image_t PatchMatchInpainter::inpaint()
         this->timing_stats.ann_times.push_back(vector<double>());
         this->timing_stats.reconstruction_times.push_back(vector<double>());
 
+        Rect bounding_box = this->hole_region_pyramid[l];
+
         for (int k = 0; k < params.n_iters; ++k) {
+//           #pragma omp for
+            for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
+              for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
+                  // run ANN and Reconstruction for individual pixel
+              }
+            }
+
+
             if (debug_mode) printf("\tk = %d\n", k);
 
             auto ann_start = CycleTimer::currentSeconds();
@@ -758,6 +861,18 @@ image_t PatchMatchInpainter::inpaint()
             auto reconstruction_duration = reconstruction_end - reconstruction_start;
             this->timing_stats.reconstruction_times[(params.n_levels - 1) - l].push_back(reconstruction_duration);
         }
+
+        // TODO @dkrajews: PARALLELIZE
+        /**
+         * for every pixel:
+         *  for i in range(10):
+         *      for j in range(n jump flood levels)
+         *          ann search at jump flood radius j
+         *          sync threads
+         *
+         *      reconstruct pixel
+         */
+
 
         // TODO @dkrajews: add timing code and something in TimingStats for timing upsampling of distance map and shift
         // map and also time the upsampling reconstruction

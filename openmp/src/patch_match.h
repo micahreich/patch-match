@@ -222,6 +222,12 @@ class PatchMatchInpainter {
     void reconstructImage(int pyramid_idx, AlgorithmStage stage, optional<reference_wrapper<mask_t>> init_boundary_mask,
                           optional<reference_wrapper<mask_t>> init_shrinking_mask);
 
+    void annHelper(int r, int c, image_t& image, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
+                                        shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
+                                        double &patch_distance_time,
+                                        optional<reference_wrapper<mask_t>> init_boundary_mask,
+                                        optional<reference_wrapper<mask_t>> init_shrinking_mask);
+
     /**
      * @brief Perform onion-peel initialization of the image at the coarsest
      * level of the image pyramid.
