@@ -832,11 +832,11 @@ image_t PatchMatchInpainter::inpaint()
 
         for (int k = 0; k < params.n_iters; ++k) {
 //           #pragma omp for
-            for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
-              for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
-                  // run ANN and Reconstruction for individual pixel
-              }
-            }
+//            for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
+//              for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
+//                  // run ANN and Reconstruction for individual pixel
+//              }
+//            }
 
 
             if (debug_mode) printf("\tk = %d\n", k);
