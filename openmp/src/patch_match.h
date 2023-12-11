@@ -11,7 +11,7 @@
 using namespace std;
 using namespace cv;
 
-extern bool debug_mode, write_levels;
+extern bool debug_mode_XXX, write_levels;
 
 enum AlgorithmStage { INITIALIZATION = 0, NORMAL = 1, FINAL = 2 };
 

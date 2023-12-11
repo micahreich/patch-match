@@ -28,7 +28,7 @@ using namespace std;
 
 const string WINDOW_NAME = "PhotoShop - CS418";
 
-bool debug_mode = false;
+bool debug_mode_XXX = false;
 bool write_levels = false;
 
 enum FillMode { ERASE = 0, FILL = 1 };
@@ -41,9 +41,9 @@ cv::Mat drawingLayer;
 int n_levels = 0, patch_size = 0, lambda = 0;
 int minimum_levels = 1, minimum_patch_size = 5, minimum_lambda = 1;
 
-void onMouse(int event, int x, int y, int flags, void* userdata)
+void onMouseXasdfasd(cv::MouseEventTypes event, int x, int y, int flags, void* userdata)
 {
-    currentMousePos = {x, y};
+    // currentMousePos = {x, y};
     if (event == cv::EVENT_LBUTTONDOWN) {
         lastPoint = cv::Point(x, y);
     }
@@ -63,11 +63,11 @@ void onMouse(int event, int x, int y, int flags, void* userdata)
     }
 }
 
-void onLevelsChange(int new_value, void* userdata) { n_levels = minimum_levels + new_value; }
+// void onLevelsChange(int new_value, void* userdata) { n_levels = minimum_levels + new_value; }
 
-void onPatchSizeChange(int new_value, void* userdata) { patch_size = minimum_patch_size + new_value; }
+// void onPatchSizeChange(int new_value, void* userdata) { patch_size = minimum_patch_size + new_value; }
 
-void onLambdaChange(int new_value, void* userdata) { lambda = minimum_lambda + new_value; }
+// void onLambdaChange(int new_value, void* userdata) { lambda = minimum_lambda + new_value; }
 
 int main(int argc, char* argv[])
 {
@@ -75,30 +75,39 @@ int main(int argc, char* argv[])
 
     omp_set_num_threads(6);
 
-    // Parse command line arguments
-    int opt;
-    while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
-        switch (opt) {
-            case 'd':
-                debug_mode = true;
-                break;
-            case 'i':
-                image_path = optarg;
-                break;
-            case 'w':
-                write_levels = true;
-                break;
-            default:
-                fprintf(stderr, "Usage: %s [options]\n", argv[0]);
-                fprintf(stderr, "Options:\n");
-                fprintf(stderr, "  -i <image path>  Load in image stored at <image path>\n");
-                fprintf(stderr, "  -d               Enable debug mode\n");
-                fprintf(stderr, "  -w               Save intermediate level results to disk\n");
-                fprintf(stderr, "  -h               Display help message\n");
 
-                exit(EXIT_FAILURE);
-        }
+    #pragma omp parallel
+    {
+        printf("threds: %d\n", omp_get_num_threads());
+        printf("Hello from process: %d\n", omp_get_thread_num());
     }
+
+    // return 0;
+
+    // Parse command line arguments
+    // int opt;
+    // while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
+    //     switch (opt) {
+    //         case 'd':
+    //             debug_mode_XXX = true;
+    //             break;
+    //         case 'i':
+    //             image_path = optarg;
+    //             break;
+    //         case 'w':
+    //             write_levels = true;
+    //             break;
+    //         default:
+    //             fprintf(stderr, "Usage: %s [options]\n", argv[0]);
+    //             fprintf(stderr, "Options:\n");
+    //             fprintf(stderr, "  -i <image path>  Load in image stored at <image path>\n");
+    //             fprintf(stderr, "  -d               Enable debug mode\n");
+    //             fprintf(stderr, "  -w               Save intermediate level results to disk\n");
+    //             fprintf(stderr, "  -h               Display help message\n");
+
+    //             exit(EXIT_FAILURE);
+    //     }
+    // }
 
     // cv::Mat image = cv::imread("./src/lena.png");
     // if (image.empty()) {
@@ -196,22 +205,23 @@ int main(int argc, char* argv[])
     //     main_disp_2.wait();
     // }
 
-    cv::Mat test_image = cv::imread("src/max-image.png", cv::IMREAD_COLOR);
-    cv::Mat test_mask = cv::imread("src/max-mask.png", cv::IMREAD_COLOR);
-    cv::Mat grayscale_mask, binary_mask;
+    // cv::Mat test_image = cv::imread("src/max-1024.jpeg", cv::IMREAD_COLOR);
+    // cv::Mat test_mask = cv::imread("src/max-1024-mask.jpeg", cv::IMREAD_COLOR);
+    // cv::Mat grayscale_mask, binary_mask;
 
-    // Convert max_mask into a binary 1 channel image
-    cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
-    cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
+    // // Convert max_mask into a binary 1 channel image
+    // cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
+    // cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
 
-    // Normalize binary_mask to 0-255
-    cv::Mat normalized_mask;
-    binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
+    // // Normalize binary_mask to 0-255
+    // cv::Mat normalized_mask;
+    // binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
 
-    PatchMatchParams params = PatchMatchParams();
+    // PatchMatchParams params = PatchMatchParams();
+    // params.n_levels = 5;
 
-    PatchMatchInpainter inpainter(test_image, binary_mask, params);
-    inpainter.inpaint();
+    // PatchMatchInpainter inpainter(test_image, binary_mask, params);
+    // inpainter.inpaint();
 
-    return EXIT_SUCCESS;
+    // return EXIT_SUCCESS;
 }

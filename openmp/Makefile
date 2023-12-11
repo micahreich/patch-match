@@ -30,6 +30,8 @@ ifeq ($(SYSTYPE),mac)
 	# Library flags
 	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
 else ifeq ($(SYSTYPE),ghc)
+	# CXX := /usr/bin/clang++
+
 	# Flags for the C Preprocessor
 	CPPFLAGS := -I/usr/include/libpng -I../lib -I/usr/include/X11
 
@@ -42,12 +44,12 @@ else ifeq ($(SYSTYPE),ghc)
 	LDFLAGS += -L$(OPENCV_DIR)/lib
 
 	# Compiler flags
-	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread -march=native
+	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
 
 	# Library flags
 	LIBS := -lX11 -lpng -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio
 
-	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/depot/fsl/fslpython/envs/fslpython/lib
+	# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/depot/fsl/fslpython/envs/fslpython/lib
 else
 	$(error Compiling for other system types is not supported.)
 endif
@@ -65,8 +67,8 @@ else
 	endif
 endif
 
-SOURCES := src/*.cpp
-HEADERS := $(wildcard src/*.h)
+SOURCES := src/main.cpp
+HEADERS := src/*.h
 
 TARGETBIN := $(OUTPUTDIR)/pm-$(CONFIGURATION)
 
