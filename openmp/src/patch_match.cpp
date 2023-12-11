@@ -240,31 +240,19 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 }
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
-                                         double &time, image_t& image, texture_t& texture,
+                                         double &time, image_t &image, texture_t &texture,
                                          optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt,
                                          string marker = "")
 {
     // TODO @dkrajews: Turns out patchDistance is responsible for a shit load of the runtime ...
 
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
-    mask_t* shrinking_mask = stage == AlgorithmStage::INITIALIZATION ? &init_shrinking_mask->get() : nullptr;
-//    if (stage == AlgorithmStage::INITIALIZATION) {
-//        assert(init_shrinking_mask != nullopt);
-//        mask_t shrinking_mask = init_shrinking_mask->get();
-//    }
-//    else {
-//        assert(init_shrinking_mask == nullopt);
-//    }
+    mask_t *shrinking_mask = stage == AlgorithmStage::INITIALIZATION ? &init_shrinking_mask->get() : nullptr;
 
-    // Get the current level's image and texture pyramids
-//    image_t image = this->image_pyramid[pyramid_idx];
-//    texture_t texture = this->texture_pyramid[pyramid_idx];
-//
     size_t image_h = image.rows, image_w = image.cols;
-//
+    //
     Rect regionA = patchRegion(centerA, image_h, image_w, false);
 
-//    Rect regionB = patchRegion(centerB, image_h, image_w, false);
     // TODO @mreich: look at region "intersection"
 
     float unoccluded_patch_area = params.patch_area;
@@ -272,8 +260,8 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     float ssd_image = 0.f;
     float ssd_texture = 0.f;
 
-////     This loop over the image region is heavily optimized, hence all the pointers and direct memory accesses
-// //    rather than making a copy of the image region and looping over that
+    //     This loop over the image region is heavily optimized, hence all the pointers and direct memory accesses
+    //    rather than making a copy of the image region and looping over that
 
     for (int i = 0; i < regionA.height; ++i) {
         // Pointers to the beginning of the i-th row in the respective regions
@@ -292,9 +280,6 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
             row_ptr_maskA = this->patch_size_zeros.ptr<uchar>(0);
         }
 
-//        if(regionA.width != 5) {
-//          printf("Width: %d\n", regionA.width);
-//        }
         for (int j = 0; j < regionA.width; ++j) {
             if (row_ptr_maskA[j] > 0) {
                 --unoccluded_patch_area;
@@ -306,15 +291,6 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
             Vec2i &textureA = row_ptr_textureA[j];
             Vec2i &textureB = row_ptr_textureB[j];
-
-//          ssd_image +=
-//              (pixelA[0] - pixelB[0]) * (pixelA[0] - pixelB[0]) +
-//              (pixelA[1] - pixelB[1]) * (pixelA[1] - pixelB[1]) +
-//              (pixelA[2] - pixelB[2]) * (pixelA[2] - pixelB[2]);
-//
-//          ssd_texture +=
-//              (textureA[0] - textureB[0]) * (textureA[0] - textureB[0]) +
-//              (textureA[1] - textureB[1]) * (textureA[1] - textureB[1]);
 
             Vec3i pixel_diff = pixelA - pixelB;
             Vec2i texture_diff = textureA - textureB;
@@ -536,7 +512,6 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
         int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
 
-//        #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
         for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
             for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
                 if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
@@ -620,55 +595,51 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     this->distance_map_pyramid[pyramid_idx] = updated_distance_map;
 }
 
-void PatchMatchInpainter::annHelper(int r, int c, image_t& image, texture_t& texture, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
-               shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
-               double &patch_distance_time, int& idx, int& jump_flood_radius, int radii_offsets[],
-               optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-               optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt) {
+void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &texture, int pyramid_idx,
+                                    vector<int> &jump_flood_radii, mask_t &dilated_mask, shift_map_t *active_shift_map,
+                                    shift_map_t *prev_shift_map, shift_map_t &updated_shift_map,
+                                    distance_map_t &updated_distance_map, double &patch_distance_time, int &idx,
+                                    int &jump_flood_radius, int radii_offsets[],
+                                    optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
+                                    optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+{
+    size_t image_h = image.rows, image_w = image.cols;
+    size_t max_image_dim = max(image_h, image_w);
+    double total_patch_distance_time = 0.f;
+    double pdt;
 
-  size_t image_h = image.rows, image_w = image.cols;
-  size_t max_image_dim = max(image_h, image_w);
-  double total_patch_distance_time = 0.f;
-  double pdt;
-
-
-
-//        #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
-    if (!dilated_mask.at<bool>(r, c))
-      return;
+    if (!dilated_mask.at<bool>(r, c)) return;
 
     Vec2i curr_coordinate = Vec2i(r, c);
     Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
 
-    float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift, AlgorithmStage::NORMAL,
-                                        pdt, image, texture,  init_shrinking_mask, "marker");
+    float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift,
+                                        AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask, "marker");
     total_patch_distance_time += pdt;
 
     // Iterate through all 9 neighbors at the current jump flood radius
     for (int dr_i = 0; dr_i < 3; dr_i++) {
-      auto dr = radii_offsets[dr_i];
-      for (int dc_i = 0; dc_i < 3; dc_i++) {
-        auto dc = radii_offsets[dc_i];
-        Vec2i partner_coordinate = Vec2i(r + dr, c + dc);
-        if (!inBounds(partner_coordinate[0], partner_coordinate[1], image_h, image_w, params.half_size))
-          continue;
+        auto dr = radii_offsets[dr_i];
+        for (int dc_i = 0; dc_i < 3; dc_i++) {
+            auto dc = radii_offsets[dc_i];
+            Vec2i partner_coordinate = Vec2i(r + dr, c + dc);
+            if (!inBounds(partner_coordinate[0], partner_coordinate[1], image_h, image_w, params.half_size)) continue;
 
-        Vec2i candidate_shift = prev_shift_map->at<Vec2i>(partner_coordinate[0], partner_coordinate[1]);
-        Vec2i candidate_coordinate = curr_coordinate + candidate_shift;
-        if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w,
-                      params.half_size))
-          continue;
+            Vec2i candidate_shift = prev_shift_map->at<Vec2i>(partner_coordinate[0], partner_coordinate[1]);
+            Vec2i candidate_coordinate = curr_coordinate + candidate_shift;
+            if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size))
+                continue;
 
-        float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
-                                                 AlgorithmStage::NORMAL, pdt, image, texture,  init_shrinking_mask);
-        total_patch_distance_time += pdt;
+            float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
+                                                     AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask);
+            total_patch_distance_time += pdt;
 
-        if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
-            candidate_distance < best_distance) {
-          best_distance = candidate_distance;
-          best_shift = candidate_shift;
+            if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
+                candidate_distance < best_distance) {
+                best_distance = candidate_distance;
+                best_shift = candidate_shift;
+            }
         }
-      }
     }
 
     // Random search step, exponential backoff from original offset
@@ -676,144 +647,109 @@ void PatchMatchInpainter::annHelper(int r, int c, image_t& image, texture_t& tex
     Vec2i original_shift = best_shift;
 
     while (alpha * max_image_dim >= 1) {
-      int random_row = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
-      int random_col = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
+        int random_row = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
+        int random_col = generateRandomInt(-alpha * max_image_dim, alpha * max_image_dim);
 
-      Vec2i random_shift_offset = Vec2i(random_row, random_col);
-      Vec2i candidate_coordinate = curr_coordinate + original_shift + random_shift_offset;
+        Vec2i random_shift_offset = Vec2i(random_row, random_col);
+        Vec2i candidate_coordinate = curr_coordinate + original_shift + random_shift_offset;
 
-      if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size))
-        continue;
+        if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size)) continue;
 
-      float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate, AlgorithmStage::NORMAL,
-                                               pdt, image, texture,  init_shrinking_mask);
-      total_patch_distance_time += pdt;
+        float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
+                                                 AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask);
+        total_patch_distance_time += pdt;
 
-      if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
-          candidate_distance < best_distance) {
-        best_distance = candidate_distance;
-        best_shift = original_shift + random_shift_offset;
-      }
+        if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
+            candidate_distance < best_distance) {
+            best_distance = candidate_distance;
+            best_shift = original_shift + random_shift_offset;
+        }
 
-      alpha *= 0.5f;
+        alpha *= 0.5f;
     }
 
     // Update the active shift map and distance map
     active_shift_map->at<Vec2i>(r, c) = best_shift;
     updated_distance_map.at<float>(r, c) = best_distance;
-
-    // Swap active and previous shift map pointers between jump flood iterations
-//    std::swap(active_shift_map, prev_shift_map);
-
 }
 
-void PatchMatchInpainter::reconstructionHelper(int r, int c, image_t& image, texture_t& texture, int pyramid_idx, mask_t mask, vector<int>& jump_flood_radii, mask_t& dilated_mask,
-                          shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
-                          double &patch_distance_time, distance_map_t& distance_map, shift_map_t& shift_map,
-                          image_t& updated_image, texture_t& updated_texture)
+void PatchMatchInpainter::reconstructionHelper(int r, int c, image_t &image, texture_t &texture, int pyramid_idx,
+                                               mask_t mask, vector<int> &jump_flood_radii, mask_t &dilated_mask,
+                                               shift_map_t *active_shift_map, shift_map_t *prev_shift_map,
+                                               shift_map_t &updated_shift_map, distance_map_t &updated_distance_map,
+                                               double &patch_distance_time, distance_map_t &distance_map,
+                                               shift_map_t &shift_map, image_t &updated_image,
+                                               texture_t &updated_texture)
 {
-  size_t image_h = image.rows, image_w = image.cols;
-  size_t max_image_dim = max(image_h, image_w);
+    size_t image_h = image.rows, image_w = image.cols;
+    size_t max_image_dim = max(image_h, image_w);
 
-  mask_t boundary_mask, shrinking_mask;
+    mask_t boundary_mask, shrinking_mask;
 
-  if (!mask.at<bool>(r, c))
-    return;
+    if (!mask.at<bool>(r, c)) return;
 
-  Rect region = patchRegion(Vec2i(r, c), image_h, image_w, true);
-  unsigned int patch_area = region.area();
+    Rect region = patchRegion(Vec2i(r, c), image_h, image_w, true);
+    unsigned int patch_area = region.area();
 
-  Vec2i best_neighborhood_pixel = Vec2i(r, c);
-  float best_neighborhood_distance = distance_map.at<float>(r, c);
+    Vec2i best_neighborhood_pixel = Vec2i(r, c);
+    float best_neighborhood_distance = distance_map.at<float>(r, c);
 
-  // Find the 75th percentile distance (of those unmasked distances, if in initialization)
-  vector<double> region_distances(patch_area, 0.f);
-  vector<Vec2i> pixels(patch_area, Vec2i(0, 0));
+    // Find the 75th percentile distance (of those unmasked distances, if in initialization)
+    vector<double> region_distances(patch_area, 0.f);
+    vector<Vec2i> pixels(patch_area, Vec2i(0, 0));
 
-  unsigned int k = 0;
-  for (int i = region.y; i < region.y + region.height; i++) {
-    for (int j = region.x; j < region.x + region.width; j++) {
-      float dist = distance_map.at<float>(i, j);
-      Vec2i px = Vec2i(i, j);
-      pixels[k] = px;
-      region_distances[k] = dist;
-      k++;
-//      switch (stage) {
-//        case AlgorithmStage::INITIALIZATION:
-//          if (!shrinking_mask.at<bool>(i, j)) {
-//            pixels[k] = Vec2i(i, j);
-//            region_distances[k] = dist;
-//            k++;
-//          }
-//
-//          break;
-//        case AlgorithmStage::NORMAL:
-//
-//
-//          break;
-//        case AlgorithmStage::FINAL:
-//          if (dist < best_neighborhood_distance) {
-//            best_neighborhood_distance = dist;
-//            best_neighborhood_pixel = px;
-//          }
-//
-//          break;
-//      }
+    unsigned int k = 0;
+    for (int i = region.y; i < region.y + region.height; i++) {
+        for (int j = region.x; j < region.x + region.width; j++) {
+            float dist = distance_map.at<float>(i, j);
+            Vec2i px = Vec2i(i, j);
+            pixels[k] = px;
+            region_distances[k] = dist;
+            k++;
+        }
     }
-  }
 
-  // On final stage, we fill in the pixel at (r, c) with the color/texture from the best neighborhood pixel's
-  // shifted area (pixel in neighborhood with lowest distance value)
-//  if (stage == AlgorithmStage::FINAL) {
-//    Vec2i shift = shift_map.at<Vec2i>(best_neighborhood_pixel[0], best_neighborhood_pixel[1]);
-//
-//    updated_image.at<Vec3i>(r, c) = image.at<Vec3i>(r + shift[0], c + shift[1]);
-//    updated_texture.at<Vec2i>(r, c) = texture.at<Vec2i>(r + shift[0], c + shift[1]);
-//
-//    continue;
-//  }
-  // On non-final stage, we weight the pixels in the neighborhood by
-  // their distance values and take a weighted average of the shifted
-  // pixels to fill in color/texture
-  vector<double> scores(region_distances);
+    // On non-final stage, we weight the pixels in the neighborhood by
+    // their distance values and take a weighted average of the shifted
+    // pixels to fill in color/texture
+    vector<double> scores(region_distances);
 
-  unsigned int n_excluded = patch_area - k;
-  unsigned int q = static_cast<unsigned int>(n_excluded + 0.75f * k);
+    unsigned int n_excluded = patch_area - k;
+    unsigned int q = static_cast<unsigned int>(n_excluded + 0.75f * k);
 
-  assert(q < region_distances.size() && q >= 0);
+    assert(q < region_distances.size() && q >= 0);
 
-  std::nth_element(region_distances.begin(), region_distances.begin() + q, region_distances.end());
-  float sigma_p = max(1e-6, region_distances[q]);
+    std::nth_element(region_distances.begin(), region_distances.begin() + q, region_distances.end());
+    float sigma_p = max(1e-6, region_distances[q]);
 
-  // Find each pixel's weight and take a weighted sum of pixels in the neighborhood
-  float scores_sum = 0.f;
-  for (int l = 0; l < k; l++) {
-    scores[l] = exp(-scores[l] / (2 * sigma_p * sigma_p));
-    scores_sum += scores[l];
-  }
+    // Find each pixel's weight and take a weighted sum of pixels in the neighborhood
+    float scores_sum = 0.f;
+    for (int l = 0; l < k; l++) {
+        scores[l] = exp(-scores[l] / (2 * sigma_p * sigma_p));
+        scores_sum += scores[l];
+    }
 
-  Vec3d image_pixel = Vec3f(0, 0, 0);
-  Vec2d texture_pixel = Vec2f(0, 0);
+    Vec3d image_pixel = Vec3f(0, 0, 0);
+    Vec2d texture_pixel = Vec2f(0, 0);
 
-  for (int l = 0; l < k; l++) {
-    float pixel_weight = scores[l] / scores_sum;
-    Vec2i shift = shift_map.at<Vec2i>(pixels[l][0], pixels[l][1]);
+    for (int l = 0; l < k; l++) {
+        float pixel_weight = scores[l] / scores_sum;
+        Vec2i shift = shift_map.at<Vec2i>(pixels[l][0], pixels[l][1]);
 
-    image_pixel += scores[l] * image.at<Vec3i>(r + shift[0], c + shift[1]);
-    texture_pixel += scores[l] * texture.at<Vec2i>(r + shift[0], c + shift[1]);
-  }
+        image_pixel += scores[l] * image.at<Vec3i>(r + shift[0], c + shift[1]);
+        texture_pixel += scores[l] * texture.at<Vec2i>(r + shift[0], c + shift[1]);
+    }
 
-  image_pixel /= scores_sum;
-  texture_pixel /= scores_sum;
+    image_pixel /= scores_sum;
+    texture_pixel /= scores_sum;
 
-  Vec3b final_image_pixel = Vec3b(saturate_cast<uchar>(image_pixel[0]), saturate_cast<uchar>(image_pixel[1]),
-                                  saturate_cast<uchar>(image_pixel[2]));
+    Vec3b final_image_pixel = Vec3b(saturate_cast<uchar>(image_pixel[0]), saturate_cast<uchar>(image_pixel[1]),
+                                    saturate_cast<uchar>(image_pixel[2]));
 
-  Vec2b final_texture_pixel =
-      Vec2b(saturate_cast<uchar>(texture_pixel[0]), saturate_cast<uchar>(texture_pixel[1]));
+    Vec2b final_texture_pixel = Vec2b(saturate_cast<uchar>(texture_pixel[0]), saturate_cast<uchar>(texture_pixel[1]));
 
-  updated_image.at<Vec3i>(r, c) = final_image_pixel;
-  updated_texture.at<Vec2i>(r, c) = final_texture_pixel;
+    updated_image.at<Vec3i>(r, c) = final_image_pixel;
+    updated_texture.at<Vec2i>(r, c) = final_texture_pixel;
 }
 
 bool nonEmptyMask(mask_t &mask)
@@ -921,9 +857,6 @@ void PatchMatchInpainter::onionPeelInit()
 
 image_t PatchMatchInpainter::inpaint()
 {
-//  #pragma omp parallel {
-//  #prahma
-//  }
     if (debug_mode_XXX) {
         printf("Beginning onion peel initialization .....\n");
     }
@@ -979,136 +912,56 @@ image_t PatchMatchInpainter::inpaint()
 
         image_t updated_image = image.clone();
         texture_t updated_texture = texture.clone();
-//        vector<int> counter(10);
 
-    //  approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-    //  reconstructImage(l, AlgorithmStage::NORMAL);
+        if (l != 0) {
+            for (int k = 0; k < params.n_iters; ++k) {
+                approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
+                reconstructImage(l, AlgorithmStage::NORMAL);
+            }
+        }
+        else {
+#pragma omp parallel default(shared)
+            {
+                for (int k = 0; k < params.n_iters; ++k) {
+                    // TODO: Put jumpflood iterations here
+                    for (int j = 0; j < params.n_iters_jfa * jump_flood_radii.size(); j++) {
+                        int idx = j % jump_flood_radii.size();
+                        int jump_flood_radius = jump_flood_radii[idx];
 
-    //   if(l != 0) {
-    //     approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-    //     reconstructImage(l, AlgorithmStage::NORMAL);
-    //   } else {
+                        int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
 
-//       #pragma omp parallel default(shared)
-//         {
+#pragma omp for collapse(2) schedule(dynamic)
+                        for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
+                            for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
+                                // run ANN and Reconstruction for individual pixel
+                                annHelper(r, c, image, texture, l, jump_flood_radii, dilated_mask, active_shift_map,
+                                          prev_shift_map, updated_shift_map, updated_distance_map, patch_distance_time,
+                                          idx, jump_flood_radius, radii_offsets);
+                            }
+                        }
 
-//             for (int k = 0; k < params.n_iters; ++k) {
-//     //           #pragma omp for
-//               // init ANN stuff
+#pragma omp single
+                        {
+                            std::swap(active_shift_map, prev_shift_map);
+                        };
+                    }
 
-//               // TODO: Put jumpflood iterations here
-//               for (int j = 0; j < params.n_iters_jfa * jump_flood_radii.size(); j++) {
-//                 int idx = j % jump_flood_radii.size();
-//                 int jump_flood_radius = jump_flood_radii[idx];
+#pragma omp barrier
 
-//                 int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
+#pragma omp single
+                    {
+                        this->shift_map_pyramid[l] = *prev_shift_map;
+                        this->distance_map_pyramid[l] = updated_distance_map;
+                    };
 
+#pragma omp single
+                    {
+                        reconstructImage(l, AlgorithmStage::NORMAL);
+                    };
+                }
+            }
+        }
 
-//                 #pragma omp for collapse(2) schedule(dynamic)
-//                 for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
-//                   for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
-//                     // run ANN and Reconstruction for individual pixel
-//                     annHelper(r, c, image, texture, l, jump_flood_radii, dilated_mask, active_shift_map,
-//                               prev_shift_map, updated_shift_map, updated_distance_map,
-//                               patch_distance_time, idx, jump_flood_radius, radii_offsets);
-// //                    counter[omp_get_thread_num()]++;
-
-//                   }
-//                 }
-
-//                 #pragma omp single
-//                 {
-// //                  for(int x = 0; x < 10; x++) {
-// //                    printf("%d: %d\n", x, counter[x]);
-// //                  }
-// //                  printf("Area: %d\n", bounding_box.area());
-// //                  printf("=========================\n");
-// //                  counter = vector<int>(10);
-//                   std::swap(active_shift_map, prev_shift_map);
-//                 };
-//               }
-
-//               #pragma omp barrier
-
-//               #pragma omp single
-//               {
-//                 this->shift_map_pyramid[l] = *prev_shift_map;
-//                 this->distance_map_pyramid[l] = updated_distance_map;
-//               };
-
-
-// //              #pragma omp for collapse(2)
-// //              for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
-// //                for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
-// //                  // run ANN and Reconstruction for individual pixel
-// //                  reconstructionHelper(r, c, image, texture, l, mask, jump_flood_radii, dilated_mask,
-// //                                       active_shift_map, prev_shift_map, updated_shift_map, updated_distance_map,
-// //                                       patch_distance_time, distance_map, shift_map, updated_image, updated_texture);
-// //
-// //                }
-// //              }
-
-//               #pragma omp single
-//               {
-//                 reconstructImage(l, AlgorithmStage::NORMAL);
-// //                this->image_pyramid[l] = updated_image;
-// //                this->texture_pyramid[l] = updated_texture;
-//               };
-
-
-
-
-//             }
-//         }
-
-
-    //   }
-
-
-
-
-      //  #pragma omp barrier ??
-
-
-
-
-//            if (debug_mode) printf("\tk = %d\n", k);
-//
-//            auto ann_start = CycleTimer::currentSeconds();
-//
-//            // Perform ANN search
-//            double patch_distance_time;
-//            approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-//            // printf("patch_distance_time: %f ms\n", 1000.f * patch_distance_time);
-//
-//            auto ann_end = CycleTimer::currentSeconds();
-//            auto ann_duration = ann_end - ann_start;
-//            this->timing_stats.ann_times[(params.n_levels - 1) - l].push_back(ann_duration);
-//
-//            auto reconstruction_start = CycleTimer::currentSeconds();
-//
-//            // Perform image and texture reconstruction based on updated shift map
-//            reconstructImage(l, AlgorithmStage::NORMAL);
-//
-//            auto reconstruction_end = CycleTimer::currentSeconds();
-//            auto reconstruction_duration = reconstruction_end - reconstruction_start;
-//            this->timing_stats.reconstruction_times[(params.n_levels - 1) - l].push_back(reconstruction_duration);
-//        }
-
-        // TODO @dkrajews: PARALLELIZE
-        /**
-         * for every pixel:
-         *  for i in range(10):
-         *      for j in range(n jump flood levels)
-         *          ann search at jump flood radius j
-         *          sync threads
-         *
-         *      reconstruct pixel
-         */
-
-
-        // TODO @dkrajews: add timing code and something in TimingStats for timing upsampling of distance map and shift
-        // map and also time the upsampling reconstruction
         if (l == 0) {
             reconstructImage(l, AlgorithmStage::FINAL);
         }
@@ -1157,8 +1010,6 @@ image_t PatchMatchInpainter::inpaint()
 PatchMatchInpainter::PatchMatchInpainter(image_t image, mask_t mask, PatchMatchParams params = PatchMatchParams())
     : params(params)
 {
-    //    srand(time(0));
-
     this->timing_stats = TimingStats();
     this->patch_dilation_element =
         getStructuringElement(MORPH_RECT, Size(this->params.patch_size, this->params.patch_size));

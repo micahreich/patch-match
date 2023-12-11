@@ -41,9 +41,9 @@ cv::Mat drawingLayer;
 int n_levels = 0, patch_size = 0, lambda = 0;
 int minimum_levels = 1, minimum_patch_size = 5, minimum_lambda = 1;
 
-void onMouseXasdfasd(cv::MouseEventTypes event, int x, int y, int flags, void* userdata)
+void onMouse(int event, int x, int y, int flags, void* userdata)
 {
-    // currentMousePos = {x, y};
+    currentMousePos = {x, y};
     if (event == cv::EVENT_LBUTTONDOWN) {
         lastPoint = cv::Point(x, y);
     }
@@ -204,8 +204,8 @@ int main(int argc, char* argv[])
     //     main_disp_2.wait();
     // }
 
-    cv::Mat test_image = cv::imread("src/max-1024.jpeg", cv::IMREAD_COLOR);
-    cv::Mat test_mask = cv::imread("src/max-1024-mask.jpeg", cv::IMREAD_COLOR);
+    cv::Mat test_image = cv::imread("src/max-image.png", cv::IMREAD_COLOR);
+    cv::Mat test_mask = cv::imread("src/max-mask.png", cv::IMREAD_COLOR);
     cv::Mat grayscale_mask, binary_mask;
 
     // Convert max_mask into a binary 1 channel image
