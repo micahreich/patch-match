@@ -981,13 +981,13 @@ image_t PatchMatchInpainter::inpaint()
         texture_t updated_texture = texture.clone();
 //        vector<int> counter(10);
 
-//      approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-//      reconstructImage(l, AlgorithmStage::NORMAL);
+    //  approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
+    //  reconstructImage(l, AlgorithmStage::NORMAL);
 
-      if(l != 0) {
-        approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
-        reconstructImage(l, AlgorithmStage::NORMAL);
-      } else {
+    //   if(l != 0) {
+    //     approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
+    //     reconstructImage(l, AlgorithmStage::NORMAL);
+    //   } else {
 
 //       #pragma omp parallel default(shared)
 //         {
@@ -1060,7 +1060,9 @@ image_t PatchMatchInpainter::inpaint()
 
 //             }
 //         }
-      }
+
+
+    //   }
 
 
 

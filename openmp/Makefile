@@ -50,6 +50,28 @@ else ifeq ($(SYSTYPE),ghc)
 	LIBS := -lX11 -lpng -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio
 
 	# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/depot/fsl/fslpython/envs/fslpython/lib
+else ifeq ($(SYSTYPE),psc)
+	# CXX := /usr/bin/clang++
+
+	# Flags for the C Preprocessor
+	CPPFLAGS := -I/usr/include/libpng -I../lib -I/usr/include/X11 -I/usr/include
+
+	LDFLAGS := -L/usr/lib/x86_64-linux-gnu
+
+	# Flags for the Linker
+
+	# OPENCV_DIR := /usr/local/depot/fsl/fslpython/envs/fslpython/
+	# CPPFLAGS += -I$(OPENCV_DIR)/include/opencv4
+	# LDFLAGS += -L$(OPENCV_DIR)/lib
+
+	# Compiler flags
+	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
+
+	# Library flags
+	LIBS := -lX11 -lpng -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_videoio
+
+	# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/depot/fsl/fslpython/envs/fslpython/lib
+
 else
 	$(error Compiling for other system types is not supported.)
 endif
@@ -67,7 +89,7 @@ else
 	endif
 endif
 
-SOURCES := src/main.cpp
+SOURCES := src/*.cpp
 HEADERS := src/*.h
 
 TARGETBIN := $(OUTPUTDIR)/pm-$(CONFIGURATION)
