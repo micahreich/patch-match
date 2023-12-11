@@ -31,15 +31,15 @@ extern "C" {
 #define omp_capture_affinity ompc_capture_affinity
 
 #if defined(_WIN32)
-#define __KAI_KMPC_CONVENTION __cdecl
-#ifndef __KMP_IMP
-#define __KMP_IMP __declspec(dllimport)
-#endif
+#    define __KAI_KMPC_CONVENTION __cdecl
+#    ifndef __KMP_IMP
+#        define __KMP_IMP __declspec(dllimport)
+#    endif
 #else
-#define __KAI_KMPC_CONVENTION
-#ifndef __KMP_IMP
-#define __KMP_IMP
-#endif
+#    define __KAI_KMPC_CONVENTION
+#    ifndef __KMP_IMP
+#        define __KMP_IMP
+#    endif
 #endif
 
 /* schedule kind constants */
@@ -387,11 +387,11 @@ extern __KMP_IMP omp_memspace_handle_t const llvm_omp_target_host_mem_space;
 extern __KMP_IMP omp_memspace_handle_t const llvm_omp_target_shared_mem_space;
 extern __KMP_IMP omp_memspace_handle_t const llvm_omp_target_device_mem_space;
 #else
-#if __cplusplus >= 201103
+#    if __cplusplus >= 201103
 typedef enum omp_allocator_handle_t : omp_uintptr_t
-#else
+#    else
 typedef enum omp_allocator_handle_t
-#endif
+#    endif
 { omp_null_allocator = 0,
   omp_default_mem_alloc = 1,
   omp_large_cap_mem_alloc = 2,
@@ -405,11 +405,11 @@ typedef enum omp_allocator_handle_t
   llvm_omp_target_shared_mem_alloc = 101,
   llvm_omp_target_device_mem_alloc = 102,
   KMP_ALLOCATOR_MAX_HANDLE = UINTPTR_MAX } omp_allocator_handle_t;
-#if __cplusplus >= 201103
+#    if __cplusplus >= 201103
 typedef enum omp_memspace_handle_t : omp_uintptr_t
-#else
+#    else
 typedef enum omp_memspace_handle_t
-#endif
+#    endif
 { omp_default_mem_space = 0,
   omp_large_cap_mem_space = 1,
   omp_const_mem_space = 2,
@@ -480,12 +480,12 @@ extern int __KAI_KMPC_CONVENTION omp_get_teams_thread_limit(void);
 extern void omp_display_env(int verbose);
 
 #if defined(_OPENMP) && _OPENMP >= 201811
-#pragma omp begin declare variant match(device = {kind(host)})
+#    pragma omp begin declare variant match(device = {kind(host)})
 static inline int omp_is_initial_device(void) { return 1; }
-#pragma omp end declare variant
-#pragma omp begin declare variant match(device = {kind(nohost)})
+#    pragma omp end declare variant
+#    pragma omp begin declare variant match(device = {kind(nohost)})
 static inline int omp_is_initial_device(void) { return 0; }
-#pragma omp end declare variant
+#    pragma omp end declare variant
 #endif
 
 /* OpenMP 5.2 */

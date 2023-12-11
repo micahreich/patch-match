@@ -952,8 +952,6 @@ image_t PatchMatchInpainter::inpaint()
 #pragma omp single
                     {
                         reconstructImage(l, AlgorithmStage::NORMAL);
-                        //                this->image_pyramid[l] = updated_image;
-                        //                this->texture_pyramid[l] = updated_texture;
                     };
                 }
             }
