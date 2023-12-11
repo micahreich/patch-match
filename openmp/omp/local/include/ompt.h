@@ -21,13 +21,13 @@
 #include <stdint.h>
 
 #ifdef DEPRECATION_WARNINGS
-#    ifdef __cplusplus
-#        define DEPRECATED_51 [[deprecated("as of 5.1")]]
-#    else
-#        define DEPRECATED_51 __attribute__((deprecated("as of 5.1")))
-#    endif
+#ifdef __cplusplus
+#define DEPRECATED_51 [[deprecated("as of 5.1")]]
 #else
-#    define DEPRECATED_51
+#define DEPRECATED_51 __attribute__((deprecated("as of 5.1")))
+#endif
+#else
+#define DEPRECATED_51
 #endif
 
 /*****************************************************************************
