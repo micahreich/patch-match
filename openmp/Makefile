@@ -2,7 +2,6 @@ OUTPUTDIR := bin
 SYSTYPE := mac
 
 ifeq ($(SYSTYPE),mac)
-#	CXX := /opt/homebrew/opt/llvm/bin/clang++
 #	ifeq ($(CXX),)
 #		CXX := /opt/homebrew/opt/llvm/bin/clang++ # fallback path
 #	endif
@@ -17,6 +16,7 @@ ifeq ($(SYSTYPE),mac)
 		CPPFLAGS += -I/./omp/local/include -Xclang -fopenmp
 		LDFLAGS += -L./omp/local/lib -lomp
 	else
+		CXX := /opt/homebrew/opt/llvm/bin/clang++
 		LDFLAGS += -fopenmp
 	endif
 
