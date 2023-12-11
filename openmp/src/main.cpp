@@ -73,6 +73,8 @@ int main(int argc, char* argv[])
 {
     const char* image_path = "src/lena.png";
 
+    omp_set_num_threads(6);
+
     // Parse command line arguments
     int opt;
     while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
