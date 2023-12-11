@@ -28,7 +28,7 @@ using namespace std;
 
 const string WINDOW_NAME = "PhotoShop - CS418";
 
-bool debug_mode = false;
+bool debug_mode_XXX = false;
 bool write_levels = false;
 
 enum FillMode { ERASE = 0, FILL = 1 };
@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
     while ((opt = getopt(argc, argv, "hdi:w")) != -1) {
         switch (opt) {
             case 'd':
-                debug_mode = true;
+                debug_mode_XXX = true;
                 break;
             case 'i':
                 image_path = optarg;

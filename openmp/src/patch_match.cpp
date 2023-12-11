@@ -512,7 +512,6 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
         int radii_offsets[3] = {-jump_flood_radius, 0, jump_flood_radius};
 
-        //        #pragma omp parallel for collapse(2) // @dkrajews: this is the main parallelization point in ANN
         for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
             for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
                 if (stage == AlgorithmStage::INITIALIZATION && !boundary_mask.at<bool>(r, c))
@@ -858,9 +857,6 @@ void PatchMatchInpainter::onionPeelInit()
 
 image_t PatchMatchInpainter::inpaint()
 {
-    //  #pragma omp parallel {
-    //  #prahma
-    //  }
     if (debug_mode_XXX) {
         printf("Beginning onion peel initialization .....\n");
     }
