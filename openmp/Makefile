@@ -59,7 +59,7 @@ ifeq (,$(CONFIGURATION))
 endif
 
 ifeq (debug,$(CONFIGURATION))
-	CFLAGS += -g
+	CFLAGS += -g -fopenmp
 else
 	CFLAGS += -O2
 	ifneq ($(NAME), david)
@@ -67,7 +67,7 @@ else
 	endif
 endif
 
-SOURCES := src/main.cpp
+SOURCES := src/*.cpp
 HEADERS := src/*.h
 
 TARGETBIN := $(OUTPUTDIR)/pm-$(CONFIGURATION)
