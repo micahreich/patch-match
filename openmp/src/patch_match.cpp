@@ -289,20 +289,22 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
                 continue;
             }
 
-            Vec3i &pixelA = row_ptr_imageA[j];
-            Vec3i &pixelB = row_ptr_imageB[j];
-
-            Vec2i &textureA = row_ptr_textureA[j];
-            Vec2i &textureB = row_ptr_textureB[j];
-
-            Vec3i pixel_diff = pixelA - pixelB;
-            Vec2i texture_diff = textureA - textureB;
-
-            ssd_image +=
-                (pixel_diff[0] * pixel_diff[0]) + (pixel_diff[1] * pixel_diff[1]) + (pixel_diff[2] * pixel_diff[2]);
-
-            ssd_texture += (texture_diff[0] * texture_diff[0]) + (texture_diff[1] * texture_diff[1]);
-        }
+            
+            Vec2i coordA = (centerA - padding) + Vec2i(i, j);
+            Vec2i coordB = (centerB - padding) + Vec2i(i, j);
+            
+            Vec3i pixelA = image.at<Vec3i>(coordA[0], coordA[1]);
+            Vec3i &pixelB = image.at<Vec3i>(coordB[0], coordB[1]);
+            Vec2i &textureA = texture.at<Vec2i>( coordA[0], coordA[1]);
+            Vec2i &textureB = texture.at<Vec2i>(coordB[0], coordB[1]);
+            ssd_image += SSD_LUT[pixelA[0] * 256 + pixelB[0]] + SSD_LUT[pixelA[1] * 256 + pixelB[1]] + SSD_LUT[pixelA[2] * 256 + pixelB[2]];
+            
+            ssd_texture += SSD_LUT[textureA[0] * 256 + textureB[0]] + SSD_LUT [textureA[1] * 256 + textureB[1]];
+      
+            float curr_distance = (1.f / unoccluded_patch_area) * (ssd_image + params.Lambda * ssd_texture);
+            if (curr_distance >= curr_best) {
+                return curr_distance;
+            }
     }
 
     float distance = (1.f / unoccluded_patch_area) * (ssd_image + params.lambda * ssd_texture);
@@ -985,13 +987,13 @@ image_t PatchMatchInpainter::inpaint()
                             }
                         }
 
+#pragma omp barrier
+
 #pragma omp single
                         {
                             std::swap(active_shift_map, prev_shift_map);
                         };
                     }
-
-#pragma omp barrier
 
 #pragma omp single
                     {
