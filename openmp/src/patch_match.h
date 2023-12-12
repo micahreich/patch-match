@@ -170,7 +170,7 @@ class PatchMatchInpainter {
      * @return float Patch distance metric from A to B
      */
     float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage, double &time, image_t& image, texture_t& texture,
-                        optional<reference_wrapper<mask_t>> init_shrinking_mask, string marker);
+                        mask_t* init_shrinking_mask, string marker);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is
@@ -203,9 +203,11 @@ class PatchMatchInpainter {
      * @param init_shrinking_mask (Optional) If provided and stage=INIT, the mask indicating the uninitialized
      * portion of the hole
      */
-    void approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage, double &patch_distance_time,
-                                    optional<reference_wrapper<mask_t>> init_boundary_mask,
-                                    optional<reference_wrapper<mask_t>> init_shrinking_mask);
+    void approximateNearestNeighbor(AlgorithmStage stage, image_t& image, texture_t& texture, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
+                                        shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
+                                        double &patch_distance_time, Rect& bounding_box,
+                                        mask_t* init_boundary_mask = nullptr,
+                                        mask_t* init_shrinking_mask = nullptr);
 
     /**
      * @brief Perform the image reconstruction step for the current level.
@@ -219,14 +221,24 @@ class PatchMatchInpainter {
      * @param init_shrinking_mask (Optional) If provided and stage=INIT, the mask indicating the uninitialized
      * portion of the hole
      */
-    void reconstructImage(int pyramid_idx, AlgorithmStage stage, optional<reference_wrapper<mask_t>> init_boundary_mask,
-                          optional<reference_wrapper<mask_t>> init_shrinking_mask);
+    // void reconstructImage(int pyramid_idx, AlgorithmStage stage,
+    //                                        image_t &image, texture_t &texture, Rect &bounding_box,
+    //                                        image_t &updated_image, texture_t &updated_texture,
+    //                                        mask_t &mask, distance_map_t &distance_map, shift_map_t &shift_map,
+    //                                        mask_t* init_boundary_mask=nullptr,
+    //                                        mask_t* init_shrinking_mask=nullptr);
+    void reconstructImage(int pyramid_idx, AlgorithmStage stage,
+                                           mask_t* init_boundary_mask=nullptr,
+                                           mask_t* init_shrinking_mask=nullptr);
 
-    void annHelper(int r, int c, image_t& image, texture_t& texture, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
-                                        shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
-                                        double &patch_distance_time,  int& idx, int& jump_flood_radius, int radii_offsets[],
-                                        optional<reference_wrapper<mask_t>> init_boundary_mask,
-                                        optional<reference_wrapper<mask_t>> init_shrinking_mask);
+                                           
+
+    void annHelper(int r, int c, image_t &image, texture_t &texture, int pyramid_idx, 
+                                    mask_t &dilated_mask, shift_map_t *active_shift_map,
+                                    shift_map_t *prev_shift_map,
+                                    distance_map_t &updated_distance_map,
+                                    int radii_offsets[],
+                                    mask_t* init_shrinking_mask = nullptr);
 
     void reconstructionHelper(int r, int c, image_t& image, texture_t& texture, int pyramid_idx, mask_t mask, vector<int>& jump_flood_radii, mask_t& dilated_mask,
                                                    shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,

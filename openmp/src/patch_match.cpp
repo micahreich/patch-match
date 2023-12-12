@@ -38,7 +38,7 @@ Rect maskBoundingRect(mask_t &mask)
     int max_row = 0;
     int min_col = mask.cols - 1;
     int max_col = 0;
-
+    
     for (int r = 0; r < mask.rows; r++) {
         for (int c = 0; c < mask.cols; c++) {
             if (mask.at<bool>(r, c)) {
@@ -241,13 +241,13 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
                                          double &time, image_t &image, texture_t &texture,
-                                         optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt,
+                                         mask_t* init_shrinking_mask = nullptr,
                                          string marker = "")
 {
     // TODO @dkrajews: Turns out patchDistance is responsible for a shit load of the runtime ...
 
     // If on initialization, we mask out the A and B regions using the shrinking_mask (as it appears in region A)
-    mask_t *shrinking_mask = stage == AlgorithmStage::INITIALIZATION ? &init_shrinking_mask->get() : nullptr;
+    mask_t *shrinking_mask = init_shrinking_mask;
 
     size_t image_h = image.rows, image_w = image.cols;
     //
@@ -260,9 +260,11 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     float ssd_image = 0.f;
     float ssd_texture = 0.f;
 
+
     //     This loop over the image region is heavily optimized, hence all the pointers and direct memory accesses
     //    rather than making a copy of the image region and looping over that
 
+    // #pragma omp parallel for reduction(+:ssd_image, ssd_texture, unoccluded_patch_area)
     for (int i = 0; i < regionA.height; ++i) {
         // Pointers to the beginning of the i-th row in the respective regions
         auto *row_ptr_imageA = image.ptr<Vec3i>(centerA[0] - params.half_size + i) + centerA[1] - params.half_size;
@@ -280,6 +282,7 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
             row_ptr_maskA = this->patch_size_zeros.ptr<uchar>(0);
         }
 
+        // This for loop causes us to be reallly slow...
         for (int j = 0; j < regionA.width; ++j) {
             if (row_ptr_maskA[j] > 0) {
                 --unoccluded_patch_area;
@@ -306,17 +309,23 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
     return distance;
 }
 
+// void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage,
+//                                            image_t &image, texture_t &texture, Rect &bounding_box,
+//                                            image_t &updated_image, texture_t &updated_texture,
+//                                            mask_t &mask, distance_map_t &distance_map, shift_map_t &shift_map,
+//                                            mask_t* init_boundary_mask,
+//                                            mask_t* init_shrinking_mask)
 void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage,
-                                           optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-                                           optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+                                           mask_t* init_boundary_mask,
+                                           mask_t* init_shrinking_mask)
 {
     mask_t boundary_mask, shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
-        assert(init_boundary_mask != nullopt);
-        assert(init_shrinking_mask != nullopt);
+        assert(init_boundary_mask != nullptr);
+        assert(init_shrinking_mask != nullptr);
 
-        boundary_mask = init_boundary_mask->get();
-        shrinking_mask = init_shrinking_mask->get();
+        boundary_mask = *init_boundary_mask;
+        shrinking_mask = *init_shrinking_mask;
     }
 
     // Get the current level's image and texture pyramids
@@ -327,9 +336,9 @@ void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage
     image_t updated_image = image.clone();
     texture_t updated_texture = texture.clone();
 
-    mask_t mask = this->mask_pyramid[pyramid_idx];
-    distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
-    shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx];
+     mask_t mask = this->mask_pyramid[pyramid_idx];
+     distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
+     shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx];
 
     size_t image_h = image.rows, image_w = image.cols;
 
@@ -455,9 +464,11 @@ vector<int> jumpFloodRadii(int pyramid_idx, int max_dimension)
     return radii;
 }
 
-void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmStage stage, double &patch_distance_time,
-                                                     optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-                                                     optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+void PatchMatchInpainter::approximateNearestNeighbor(AlgorithmStage stage, image_t& image, texture_t& texture, int pyramid_idx, vector<int>& jump_flood_radii, mask_t& dilated_mask,
+                                        shift_map_t *active_shift_map, shift_map_t *prev_shift_map, shift_map_t& updated_shift_map, distance_map_t& updated_distance_map,
+                                        double &patch_distance_time, Rect& bounding_box,
+                                        mask_t* init_boundary_mask,
+                                        mask_t* init_shrinking_mask)
 {
     // TODO @dkrajews: when profiling ANN, also profile patchDistance. Inside patchDistance, I want to see if when I do
     // something like image_regionA = image(regionA) -- which copies the image content -- significantly slows stuff down
@@ -468,40 +479,40 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
 
     mask_t boundary_mask, shrinking_mask;
     if (stage == AlgorithmStage::INITIALIZATION) {
-        assert(init_boundary_mask != nullopt);
-        assert(init_shrinking_mask != nullopt);
+        assert(init_boundary_mask != nullptr);
+        assert(init_shrinking_mask != nullptr);
 
-        boundary_mask = init_boundary_mask->get();
-        shrinking_mask = init_shrinking_mask->get();
+        boundary_mask = *init_boundary_mask;
+        shrinking_mask = *init_shrinking_mask;
     }
     else {
-        assert(init_boundary_mask == nullopt);
-        assert(init_shrinking_mask == nullopt);
+        assert(init_boundary_mask == nullptr);
+        assert(init_shrinking_mask == nullptr);
     }
 
     // Get the current level's image and texture pyramids
-    image_t image = this->image_pyramid[pyramid_idx];
-    texture_t texture = this->texture_pyramid[pyramid_idx];
-    Rect bounding_box = this->hole_region_pyramid[pyramid_idx];
+    // image_t image = this->image_pyramid[pyramid_idx];
+    // texture_t texture = this->texture_pyramid[pyramid_idx];
+    // Rect bounding_box = this->hole_region_pyramid[pyramid_idx];
 
-    mask_t mask = this->mask_pyramid[pyramid_idx];
-    mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
+    // mask_t mask = this->mask_pyramid[pyramid_idx];
+    // mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
 
-    distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
+    // distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
 
-    shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx].clone();
-    shift_map_t updated_shift_map = shift_map.clone();
+    // shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx].clone();
+    // shift_map_t updated_shift_map = shift_map.clone();
 
-    // TODO @dkrajews: investigate if things are being copied here correctly
-    shift_map_t *active_shift_map = &updated_shift_map;
-    shift_map_t *prev_shift_map = &shift_map;
+    // // TODO @dkrajews: investigate if things are being copied here correctly
+    // shift_map_t *active_shift_map = &updated_shift_map;
+    // shift_map_t *prev_shift_map = &shift_map;
 
     size_t image_h = image.rows, image_w = image.cols;
     size_t max_image_dim = max(image_h, image_w);
 
-    distance_map_t updated_distance_map = distance_map.clone();
+    // distance_map_t updated_distance_map = distance_map.clone();
 
-    vector<int> jump_flood_radii = jumpFloodRadii(pyramid_idx, max_image_dim);
+    // vector<int> jump_flood_radii = jumpFloodRadii(pyramid_idx, max_image_dim);
 
     double total_patch_distance_time = 0.f;
     double pdt;
@@ -595,13 +606,12 @@ void PatchMatchInpainter::approximateNearestNeighbor(int pyramid_idx, AlgorithmS
     this->distance_map_pyramid[pyramid_idx] = updated_distance_map;
 }
 
-void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &texture, int pyramid_idx,
-                                    vector<int> &jump_flood_radii, mask_t &dilated_mask, shift_map_t *active_shift_map,
-                                    shift_map_t *prev_shift_map, shift_map_t &updated_shift_map,
-                                    distance_map_t &updated_distance_map, double &patch_distance_time, int &idx,
-                                    int &jump_flood_radius, int radii_offsets[],
-                                    optional<reference_wrapper<mask_t>> init_boundary_mask = nullopt,
-                                    optional<reference_wrapper<mask_t>> init_shrinking_mask = nullopt)
+void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &texture, int pyramid_idx, 
+                                    mask_t &dilated_mask, shift_map_t *active_shift_map,
+                                    shift_map_t *prev_shift_map,
+                                    distance_map_t &updated_distance_map,
+                                    int radii_offsets[],
+                                    mask_t* init_shrinking_mask)
 {
     size_t image_h = image.rows, image_w = image.cols;
     size_t max_image_dim = max(image_h, image_w);
@@ -836,18 +846,50 @@ void PatchMatchInpainter::onionPeelInit()
             waitKey(0);
         }
 
+        Rect bounding_box = this->hole_region_pyramid[pyramid_idx];
+
+        // Get the current level's image and texture pyramids
+        image_t image = this->image_pyramid[pyramid_idx];
+        texture_t texture = this->texture_pyramid[pyramid_idx];
+
+        mask_t mask = this->mask_pyramid[pyramid_idx];
+        mask_t dilated_mask = this->dilated_mask_pyramid[pyramid_idx];
+
+        distance_map_t distance_map = this->distance_map_pyramid[pyramid_idx];
+
+        shift_map_t shift_map = this->shift_map_pyramid[pyramid_idx].clone();
+        shift_map_t updated_shift_map = shift_map.clone();
+
+        shift_map_t *active_shift_map = &updated_shift_map;
+        shift_map_t *prev_shift_map = &shift_map;
+
+        size_t image_h = image.rows, image_w = image.cols;
+        size_t max_image_dim = max(image_h, image_w);
+
+        distance_map_t updated_distance_map = distance_map.clone();
+
+        vector<int> jump_flood_radii = jumpFloodRadii(pyramid_idx, max_image_dim);
+
+        double total_patch_distance_time = 0.f;
+        double pdt;
+
+        image_t updated_image = image.clone();
+        texture_t updated_texture = texture.clone();
+
         // Perform ANN search for pixels on the shrinking mask boundary
         double patch_distance_time;
-        approximateNearestNeighbor(pyramid_idx, AlgorithmStage::INITIALIZATION, patch_distance_time,
-                                   optional<reference_wrapper<mask_t>>(ref(boundary_shrinking_mask)),
-                                   optional<reference_wrapper<mask_t>>(ref(shrinking_mask)));
+        approximateNearestNeighbor(AlgorithmStage::INITIALIZATION, image, texture, pyramid_idx, jump_flood_radii, dilated_mask, active_shift_map,
+                                          prev_shift_map, updated_shift_map, updated_distance_map, patch_distance_time,
+                                          bounding_box, &boundary_shrinking_mask, &shrinking_mask);
 
         if (onion_peel_level > params.half_size) {
             // If progressed enough into the initialization to start filling in the actual mask values, reconstruct
             // boundary vals
+            // reconstructImage(pyramid_idx, AlgorithmStage::INITIALIZATION, image, texture, bounding_box,
+            //                 updated_image, updated_texture, mask, distance_map, shift_map,
+            //                   &boundary_shrinking_mask, &shrinking_mask);
             reconstructImage(pyramid_idx, AlgorithmStage::INITIALIZATION,
-                             optional<reference_wrapper<mask_t>>(ref(boundary_shrinking_mask)),
-                             optional<reference_wrapper<mask_t>>(ref(shrinking_mask)));
+                              &boundary_shrinking_mask, &shrinking_mask);
         }
 
         // Update the shrinking mask to be the eroded version of itself
@@ -913,9 +955,13 @@ image_t PatchMatchInpainter::inpaint()
         image_t updated_image = image.clone();
         texture_t updated_texture = texture.clone();
 
-        if (l != 0) {
+        if (l >= 2) {
             for (int k = 0; k < params.n_iters; ++k) {
-                approximateNearestNeighbor(l, AlgorithmStage::NORMAL, patch_distance_time);
+                approximateNearestNeighbor(AlgorithmStage::NORMAL, image, texture, l, jump_flood_radii, dilated_mask, active_shift_map,
+                                          prev_shift_map, updated_shift_map, updated_distance_map, patch_distance_time,
+                                          bounding_box);
+                // reconstructImage(l, AlgorithmStage::NORMAL, image, texture, bounding_box, 
+                //             updated_image, updated_texture, mask, distance_map, shift_map);
                 reconstructImage(l, AlgorithmStage::NORMAL);
             }
         }
@@ -934,9 +980,8 @@ image_t PatchMatchInpainter::inpaint()
                         for (int r = bounding_box.y; r < bounding_box.y + bounding_box.height; r++) {
                             for (int c = bounding_box.x; c < bounding_box.x + bounding_box.width; c++) {
                                 // run ANN and Reconstruction for individual pixel
-                                annHelper(r, c, image, texture, l, jump_flood_radii, dilated_mask, active_shift_map,
-                                          prev_shift_map, updated_shift_map, updated_distance_map, patch_distance_time,
-                                          idx, jump_flood_radius, radii_offsets);
+                                annHelper(r, c, image, texture, l, dilated_mask, active_shift_map,
+                                          prev_shift_map, updated_distance_map, radii_offsets);
                             }
                         }
 
@@ -952,10 +997,9 @@ image_t PatchMatchInpainter::inpaint()
                     {
                         this->shift_map_pyramid[l] = *prev_shift_map;
                         this->distance_map_pyramid[l] = updated_distance_map;
-                    };
 
-#pragma omp single
-                    {
+                        // reconstructImage(l, AlgorithmStage::NORMAL,image, texture, bounding_box, 
+                        //     updated_image, updated_texture, mask, distance_map, shift_map);
                         reconstructImage(l, AlgorithmStage::NORMAL);
                     };
                 }
@@ -963,6 +1007,8 @@ image_t PatchMatchInpainter::inpaint()
         }
 
         if (l == 0) {
+            // reconstructImage(l, AlgorithmStage::FINAL,image, texture, bounding_box, 
+            //                 updated_image, updated_texture, mask, distance_map, shift_map);
             reconstructImage(l, AlgorithmStage::FINAL);
         }
         else {
@@ -974,6 +1020,8 @@ image_t PatchMatchInpainter::inpaint()
             this->shift_map_pyramid[l - 1] = upsampled_shift_map;
             this->distance_map_pyramid[l - 1] = upsampled_distance_map;
 
+            // reconstructImage(l - 1, AlgorithmStage::NORMAL, image, texture, bounding_box, 
+            //                 updated_image, updated_texture, mask, distance_map, shift_map);
             reconstructImage(l - 1, AlgorithmStage::NORMAL);
         }
 

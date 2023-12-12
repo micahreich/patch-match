@@ -25,7 +25,7 @@ ifeq ($(SYSTYPE),mac)
 	LDFLAGS += -L$(OPENCV_DIR)/lib
 
 	# Compiler flags
-	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread
+	CFLAGS := -std=c++17 -fvisibility=hidden -lpthread -march=native
 
 	# Library flags
 	LIBS := -lX11 -lpng -ljpeg -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
@@ -81,12 +81,13 @@ ifeq (,$(CONFIGURATION))
 endif
 
 ifeq (debug,$(CONFIGURATION))
-	CFLAGS += -g -fopenmp
+	CFLAGS += -g
 else
 	CFLAGS += -O2
-	ifneq ($(NAME), david)
-		CFLAGS += -fopenmp
-	endif
+endif
+
+ifneq ($(NAME), david)
+	CFLAGS += -fopenmp
 endif
 
 SOURCES := src/*.cpp

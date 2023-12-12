@@ -204,8 +204,8 @@ int main(int argc, char* argv[])
     //     main_disp_2.wait();
     // }
 
-    cv::Mat test_image = cv::imread("src/max-image.png", cv::IMREAD_COLOR);
-    cv::Mat test_mask = cv::imread("src/max-mask.png", cv::IMREAD_COLOR);
+    cv::Mat test_image = cv::imread("src/max-1024.jpeg", cv::IMREAD_COLOR);
+    cv::Mat test_mask = cv::imread("src/max-1024-mask.jpeg", cv::IMREAD_COLOR);
     cv::Mat grayscale_mask, binary_mask;
 
     // Convert max_mask into a binary 1 channel image
