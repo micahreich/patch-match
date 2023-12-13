@@ -13,6 +13,16 @@
 using namespace std;
 using namespace cv;
 
+unsigned short SSD_LUT[256*256];
+
+void initSSDLUT() {
+    for(int i = 0; i < 256; i++) {
+        for(int j = 0; j < 256; j++) {
+            SSD_LUT[i*256 + j] = (i-j)*(i-j);
+        }
+    }
+}
+
 void printProgressBar(int step, int total_steps)
 {
     const int bar_width = 60;
@@ -241,6 +251,7 @@ void PatchMatchInpainter::initPyramids(image_t image, mask_t mask)
 
 float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage,
                                          double &time, image_t &image, texture_t &texture,
+                                         float curr_best,
                                          mask_t* init_shrinking_mask = nullptr,
                                          string marker = "")
 {
@@ -259,6 +270,8 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
 
     float ssd_image = 0.f;
     float ssd_texture = 0.f;
+
+    Vec2i padding(params.half_size, params.half_size);
 
 
     //     This loop over the image region is heavily optimized, hence all the pointers and direct memory accesses
@@ -301,14 +314,16 @@ float PatchMatchInpainter::patchDistance(int pyramid_idx, Vec2i centerA, Vec2i c
             
             ssd_texture += SSD_LUT[textureA[0] * 256 + textureB[0]] + SSD_LUT [textureA[1] * 256 + textureB[1]];
       
-            float curr_distance = (1.f / unoccluded_patch_area) * (ssd_image + params.Lambda * ssd_texture);
+            float curr_distance = (1.f / unoccluded_patch_area) * (ssd_image + params.lambda * ssd_texture);
             if (curr_distance >= curr_best) {
                 return curr_distance;
             }
+        }
     }
 
     float distance = (1.f / unoccluded_patch_area) * (ssd_image + params.lambda * ssd_texture);
     return distance;
+
 }
 
 // void PatchMatchInpainter::reconstructImage(int pyramid_idx, AlgorithmStage stage,
@@ -536,7 +551,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(AlgorithmStage stage, image
                 Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
 
                 float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift, stage,
-                                                    pdt, image, texture, init_shrinking_mask, "marker");
+                                                    pdt, image, texture, (float)numeric_limits<int>::max(), init_shrinking_mask, "marker");
                 total_patch_distance_time += pdt;
 
                 // Iterate through all 9 neighbors at the current jump flood radius
@@ -553,7 +568,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(AlgorithmStage stage, image
                             continue;
 
                         float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
-                                                                 stage, pdt, image, texture, init_shrinking_mask);
+                                                                 stage, pdt, image, texture, best_distance, init_shrinking_mask);
                         total_patch_distance_time += pdt;
 
                         if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
@@ -579,7 +594,7 @@ void PatchMatchInpainter::approximateNearestNeighbor(AlgorithmStage stage, image
                         continue;
 
                     float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate, stage,
-                                                             pdt, image, texture, init_shrinking_mask);
+                                                             pdt, image, texture, best_distance, init_shrinking_mask);
                     total_patch_distance_time += pdt;
 
                     if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
@@ -626,7 +641,7 @@ void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &tex
     Vec2i best_shift = prev_shift_map->at<Vec2i>(r, c);
 
     float best_distance = patchDistance(pyramid_idx, curr_coordinate, curr_coordinate + best_shift,
-                                        AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask, "marker");
+                                        AlgorithmStage::NORMAL, pdt, image, texture, (float)numeric_limits<int>::max(), init_shrinking_mask, "marker");
     total_patch_distance_time += pdt;
 
     // Iterate through all 9 neighbors at the current jump flood radius
@@ -643,7 +658,7 @@ void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &tex
                 continue;
 
             float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
-                                                     AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask);
+                                                     AlgorithmStage::NORMAL, pdt, image, texture, best_distance, init_shrinking_mask);
             total_patch_distance_time += pdt;
 
             if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
@@ -668,7 +683,7 @@ void PatchMatchInpainter::annHelper(int r, int c, image_t &image, texture_t &tex
         if (!inBounds(candidate_coordinate[0], candidate_coordinate[1], image_h, image_w, params.half_size)) continue;
 
         float candidate_distance = patchDistance(pyramid_idx, curr_coordinate, candidate_coordinate,
-                                                 AlgorithmStage::NORMAL, pdt, image, texture, init_shrinking_mask);
+                                                 AlgorithmStage::NORMAL, pdt, image, texture, best_distance, init_shrinking_mask);
         total_patch_distance_time += pdt;
 
         if (!dilated_mask.at<bool>(candidate_coordinate[0], candidate_coordinate[1]) &&
@@ -959,18 +974,24 @@ image_t PatchMatchInpainter::inpaint()
 
         if (l >= 2) {
             for (int k = 0; k < params.n_iters; ++k) {
+                auto iter_start = CycleTimer::currentSeconds();
                 approximateNearestNeighbor(AlgorithmStage::NORMAL, image, texture, l, jump_flood_radii, dilated_mask, active_shift_map,
                                           prev_shift_map, updated_shift_map, updated_distance_map, patch_distance_time,
                                           bounding_box);
+                auto reconstruct_start = CycleTimer::currentSeconds();
                 // reconstructImage(l, AlgorithmStage::NORMAL, image, texture, bounding_box, 
                 //             updated_image, updated_texture, mask, distance_map, shift_map);
                 reconstructImage(l, AlgorithmStage::NORMAL);
+                auto reconstruct_end = CycleTimer::currentSeconds();
+                this->timing_stats.reconstruction_times[l].push_back(reconstruct_end - reconstruct_start);
+                this->timing_stats.ann_times[l].push_back(reconstruct_start - iter_start);
             }
         }
         else {
 #pragma omp parallel default(shared)
             {
                 for (int k = 0; k < params.n_iters; ++k) {
+                    auto iter_start = CycleTimer::currentSeconds();
                     // TODO: Put jumpflood iterations here
                     for (int j = 0; j < params.n_iters_jfa * jump_flood_radii.size(); j++) {
                         int idx = j % jump_flood_radii.size();
@@ -991,6 +1012,8 @@ image_t PatchMatchInpainter::inpaint()
 
 #pragma omp single
                         {
+                            auto current_time = CycleTimer::currentSeconds();
+                            this->timing_stats.ann_times[l].push_back(current_time - iter_start);
                             std::swap(active_shift_map, prev_shift_map);
                         };
                     }
@@ -1002,7 +1025,10 @@ image_t PatchMatchInpainter::inpaint()
 
                         // reconstructImage(l, AlgorithmStage::NORMAL,image, texture, bounding_box, 
                         //     updated_image, updated_texture, mask, distance_map, shift_map);
+                        auto reconstruct_start = CycleTimer::currentSeconds();
                         reconstructImage(l, AlgorithmStage::NORMAL);
+                        auto reconstruct_end = CycleTimer::currentSeconds();
+                        this->timing_stats.reconstruction_times[l].push_back(reconstruct_end - reconstruct_start);
                     };
                 }
             }
@@ -1060,7 +1086,12 @@ image_t PatchMatchInpainter::inpaint()
 PatchMatchInpainter::PatchMatchInpainter(image_t image, mask_t mask, PatchMatchParams params = PatchMatchParams())
     : params(params)
 {
+    initSSDLUT();
+
     this->timing_stats = TimingStats();
+    this->timing_stats.ann_times.resize(params.n_levels);
+    this->timing_stats.reconstruction_times.resize(params.n_levels);
+
     this->patch_dilation_element =
         getStructuringElement(MORPH_RECT, Size(this->params.patch_size, this->params.patch_size));
     this->patch_size_ones = Mat::ones(this->params.patch_size, this->params.patch_size, CV_8UC1);

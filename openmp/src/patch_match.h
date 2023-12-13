@@ -63,24 +63,25 @@ struct TimingStats {
         int n_levels = level_times.size();
 
         for (int i = 0; i < n_levels; ++i) {
-            printf("Level %d times: \n", n_levels - 1 - i);
+            int level = n_levels - 1 - i;
+            printf("Level %d times: \n", level);
 
-            double total_ann_time_ms = std::accumulate(ann_times[i].begin(), ann_times[i].end(), 0.f);
+            double total_ann_time_ms = std::accumulate(ann_times[level].begin(), ann_times[level].end(), 0.f);
             double total_reconstruction_time_ms =
-                std::accumulate(reconstruction_times[i].begin(), reconstruction_times[i].end(), 0.f);
+                std::accumulate(reconstruction_times[level].begin(), reconstruction_times[level].end(), 0.f);
 
-            double avg_ann_time = total_ann_time_ms / static_cast<double>(ann_times[i].size());
+            double avg_ann_time = total_ann_time_ms / static_cast<double>(ann_times[level].size());
             double avg_reconstruction_time =
-                total_reconstruction_time_ms / static_cast<double>(reconstruction_times[i].size());
+                total_reconstruction_time_ms / static_cast<double>(reconstruction_times[level].size());
             double level_time = level_times[i];
 
             total_ann_time += avg_ann_time;
             total_reconstruction_time += avg_reconstruction_time;
             total_time += level_time;
 
-            printf("  Level %d average ANN time:            %.2f ms\n", i, 1000.f * avg_ann_time);
-            printf("  Level %d average reconstruction time: %.2f ms\n", i, 1000.f * avg_reconstruction_time);
-            printf("  Level %d total time:                  %.2f ms\n", i, 1000.f * level_time);
+            printf("  Level %d average ANN time:            %.2f ms\n", level, 1000.f * avg_ann_time);
+            printf("  Level %d average reconstruction time: %.2f ms\n", level, 1000.f * avg_reconstruction_time);
+            printf("  Level %d total time:                  %.2f ms\n", level, 1000.f * level_time);
         }
 
         printf("-----------------------------------\n");
@@ -170,7 +171,7 @@ class PatchMatchInpainter {
      * @return float Patch distance metric from A to B
      */
     float patchDistance(int pyramid_idx, Vec2i centerA, Vec2i centerB, AlgorithmStage stage, double &time, image_t& image, texture_t& texture,
-                        mask_t* init_shrinking_mask, string marker);
+                        float curr_best, mask_t* init_shrinking_mask, string marker);
 
     /**
      * @brief Initialize pyramid levels. Image pyramid for next highest level is

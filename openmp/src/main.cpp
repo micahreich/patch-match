@@ -73,8 +73,6 @@ int main(int argc, char* argv[])
 {
     const char* image_path = "src/lena.png";
 
-    // omp_set_num_threads(8);
-
     // #pragma omp parallel
     // {
     //     printf("threds: %d\n", omp_get_num_threads());
@@ -204,23 +202,35 @@ int main(int argc, char* argv[])
     //     main_disp_2.wait();
     // }
 
-    cv::Mat test_image = cv::imread("src/max-1024.jpeg", cv::IMREAD_COLOR);
-    cv::Mat test_mask = cv::imread("src/max-1024-mask.jpeg", cv::IMREAD_COLOR);
-    cv::Mat grayscale_mask, binary_mask;
 
-    // Convert max_mask into a binary 1 channel image
-    cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
-    cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
+    for(int i = 1; i <= 8; i++) {
+        printf("%d Threads:\n", i);
+        printf("=================================\n");
+        omp_set_num_threads(i);
+        for(int x = 0; x < 3; x++) {
+            cv::Mat test_image = cv::imread("src/max-1024.jpeg", cv::IMREAD_COLOR);
+            cv::Mat test_mask = cv::imread("src/max-1024-mask.jpeg", cv::IMREAD_COLOR);
+            cv::Mat grayscale_mask, binary_mask;
 
-    // Normalize binary_mask to 0-255
-    cv::Mat normalized_mask;
-    binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
+            // Convert max_mask into a binary 1 channel image
+            cv::cvtColor(test_mask, grayscale_mask, cv::COLOR_BGR2GRAY);
+            cv::threshold(grayscale_mask, binary_mask, 127, 1, cv::THRESH_BINARY);
 
-    PatchMatchParams params = PatchMatchParams();
-    params.n_levels = 5;
+            // Normalize binary_mask to 0-255
+            cv::Mat normalized_mask;
+            binary_mask.convertTo(normalized_mask, CV_8UC1, 255);
 
-    PatchMatchInpainter inpainter(test_image, binary_mask, params);
-    inpainter.inpaint();
+            PatchMatchParams params = PatchMatchParams();
+            params.n_levels = 5;
+
+            PatchMatchInpainter inpainter(test_image, binary_mask, params);
+            inpainter.inpaint();
+            printf("\n\n\n");
+        }
+    }
+
+
+    
 
     return EXIT_SUCCESS;
 }
